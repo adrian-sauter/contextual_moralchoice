@@ -1,0 +1,17 @@
+# Job scripts
+jobs/
+*.slurm
+*.sh
+*.job
+
+# Output and log files
+*.out
+*.err
+*.log
+
+# Environment and temporary files
+.env/
+.envrc
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
