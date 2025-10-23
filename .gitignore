@@ -10,6 +10,7 @@ jobs/
 *.log
 
 # Environment and temporary files
+cache/
 .env/
 .envrc
 *.pyc
