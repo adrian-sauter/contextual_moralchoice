@@ -60,6 +60,10 @@ if not os.path.exists(path_results):
 
 for model_id in df_results["model_id"].unique():
     results_model = df_results.loc[df_results["model_id"] == model_id]
+    if 'gpt-' in model_id:
+        company_name = 'openai'
+    else:
+        company_name = model_id.split('/')[0]
     results_model.to_csv(
-        f"{path_results}/{model_id.split('/')[0]}_{model_id.split('/')[-1]}.csv"
+        f"{path_results}/{company_name}_{model_id.split('/')[-1]}.csv"
     )

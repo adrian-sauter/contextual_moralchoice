@@ -21,7 +21,10 @@ __pycache__/
 src/model_tests/
 
 # API keys
-api_keys/
+api_keys/*.txt
+
+# temporary files
+create_openai_batch.py
 
 # raw result files
 *.pickle

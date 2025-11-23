@@ -7,7 +7,7 @@ import ai21
 import cohere
 import anthropic
 import openai
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 import google.generativeai as palm
 
 from google.api_core import retry
@@ -28,6 +28,32 @@ from src.config import PATH_API_KEYS, PATH_AZURE_ENDPOINT, PATH_HF_CACHE, PATH_O
 
 
 API_TIMEOUTS = [1, 2, 4, 8, 16, 32]
+
+import time
+from collections import deque
+
+MAX_RPM = 500          # requests per minute limit
+WINDOW = 60.0          # seconds
+
+# store timestamps of recent requests
+request_times = deque()
+
+def rate_limit():
+    """Block until a new request is allowed under RPM limit."""
+    now = time.time()
+    # remove timestamps older than one minute
+    while request_times and now - request_times[0] > WINDOW:
+        request_times.popleft()
+
+    if len(request_times) >= MAX_RPM:
+        # wait until the oldest request falls out of the 60 s window
+        sleep_time = WINDOW - (now - request_times[0])
+        print(f"⏸️  Hit {MAX_RPM} RPM, sleeping for {sleep_time:.2f}s")
+        time.sleep(sleep_time)
+        rate_limit()  # re-check after sleeping
+
+    # record this request
+    request_times.append(time.time())
 
 ####################################################################################
 # MODELS DICT
@@ -120,7 +146,7 @@ MODELS = dict(
             "model_name": "gpt-3.5-turbo",
             "8bit": None,
             "likelihood_access": False,
-            "endpoint": "ChatCompletion",
+            "endpoint": None,
         },
         "openai/gpt-4": {
             "company": "openai",
@@ -415,7 +441,7 @@ MODELS = dict(
             "company": "meta",
             "model_class": "LlamaModel",
             "model_name": "meta-llama/Llama-3.1-8B-instruct",
-            "8bit": True,
+            "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
         },
@@ -502,11 +528,43 @@ MODELS = dict(
         "deepseek/deepseek-V3.1": {
             "company": "deepseek",
             "model_class": "DeepSeekAPIModel",
-            "model_name": "Deepseek-V3.1",
+            "model_name": "DeepSeek-V3.1",
             "8bit": False,
             "likelihood_access": True,
             "endpoint": True,
         },
+        "openai/gpt-4o-mini": {
+            "company": "openai",
+            "model_class": "OpenAIModel",
+            "model_name": "gpt-4o-mini",
+            "8bit": None,
+            "likelihood_access": False,
+            "endpoint": None,
+        },
+        "openai/gpt-4.1-mini": {
+            "company": "openai",
+            "model_class": "OpenAIModel",
+            "model_name": "gpt-4.1-mini",
+            "8bit": None,
+            "likelihood_access": False,
+            "endpoint": None,
+        },
+        "openai/gpt-4.1": {
+            "company": "openai",
+            "model_class": "OpenAIModel",
+            "model_name": "gpt-4.1",
+            "8bit": None,
+            "likelihood_access": False,
+            "endpoint": None,
+        },
+        "openai/gpt-5.1": {
+            "company": "openai",
+            "model_class": "OpenAIModel",
+            "model_name": "gpt-5.1",
+            "8bit": None,
+            "likelihood_access": False,
+            "endpoint": None,
+        }
     }
 )
 
@@ -529,11 +587,11 @@ def get_api_key(company_identifier: str) -> str:
     raise ValueError(f"API KEY not available at: {path_key}")
 
 
-def get_azure_endpoint() -> str:
+def get_azure_endpoint(company_identifier: str) -> str:
     """
     Helper Function to retrieve Azure Endpoint from file
     """
-    path_endpoint = str(PATH_AZURE_ENDPOINT / f"azure_endpoint.txt")
+    path_endpoint = str(PATH_AZURE_ENDPOINT / f"{company_identifier}_azure_endpoint.txt")
 
     if os.path.exists(path_endpoint):
         with open(path_endpoint, encoding="utf-8") as f:
@@ -773,10 +831,9 @@ class OpenAIModel(LanguageModel):
         )
 
         api_key = get_api_key("openai")
-        azure_endpoint = get_azure_endpoint()
-        self._client = AzureOpenAI(
-            api_version='2024-12-01-preview',
-            azure_endpoint=azure_endpoint,
+        self._client = OpenAI(
+            #api_version='2024-12-01-preview',
+            #azure_endpoint=azure_endpoint,
             api_key=api_key,
         )
 
@@ -798,46 +855,63 @@ class OpenAIModel(LanguageModel):
 
         while not success:
             try:
-                if self._model_endpoint == "ChatCompletion":
-                    # Dialogue Format
-                    messages = [
-                        {"role": "system", "content": f"{prompt_system[:-2]}"},  # cut off last \n\n
-                        {"role": "user", "content": f"{prompt_base}"},
-                    ]
+                rate_limit()
+                messages = [
+                    {"role": "system", "content": f"{prompt_system[:-2]}"},  # cut off last \n\n
+                    {"role": "user", "content": f"{prompt_base}"},
+                ]
 
-                    # Query ChatCompletion endpoint
-                    response = self._client.chat.completions.create(
-                        model=self._model_name,
-                        messages=messages,
-                        temperature=temperature,
-                        top_p=top_p,
-                        max_tokens=max_tokens,
-                        frequency_penalty=frequency_penalty,
-                        presence_penalty=presence_penalty,
-                    )
+                # Query ChatCompletion endpoint
+                response = self._client.responses.create(
+                    model=self._model_name,
+                    input=messages,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_output_tokens=max_tokens,
+                    #frequency_penalty=frequency_penalty,
+                    #presence_penalty=presence_penalty,
+                )
+                # if self._model_endpoint == "ChatCompletion":
+                #     # Dialogue Format
+                #     messages = [
+                #         {"role": "system", "content": f"{prompt_system[:-2]}"},  # cut off last \n\n
+                #         {"role": "user", "content": f"{prompt_base}"},
+                #     ]
 
-                elif self._model_endpoint == "Completion":
-                    # Query Completion endpoint
-                    response = openai.Completion.create(
-                        model=self._model_name,
-                        prompt=f"{prompt_system}{prompt_base}",
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        top_p=top_p,
-                        frequency_penalty=frequency_penalty,
-                        presence_penalty=presence_penalty,
-                        logprobs=logprobs,
-                        stop=stop,
-                        echo=echo,
-                    )
+                #     # Query ChatCompletion endpoint
+                #     response = self._client.chat.completions.create(
+                #         model=self._model_name,
+                #         messages=messages,
+                #         temperature=temperature,
+                #         top_p=top_p,
+                #         max_tokens=max_tokens,
+                #         frequency_penalty=frequency_penalty,
+                #         presence_penalty=presence_penalty,
+                #     )
 
-                else:
-                    raise ValueError("Unknownw Model Endpoint")
+                # elif self._model_endpoint == "Completion":
+                #     # Query Completion endpoint
+                #     response = openai.Completion.create(
+                #         model=self._model_name,
+                #         prompt=f"{prompt_system}{prompt_base}",
+                #         temperature=temperature,
+                #         max_tokens=max_tokens,
+                #         top_p=top_p,
+                #         frequency_penalty=frequency_penalty,
+                #         presence_penalty=presence_penalty,
+                #         logprobs=logprobs,
+                #         stop=stop,
+                #         echo=echo,
+                #     )
+
+                # else:
+                #     raise ValueError("Unknownw Model Endpoint")
 
                 # Set success flag
                 success = True
 
-            except:
+            except Exception as e:
+                print(f"OpenAI API error: {e}")
                 time.sleep(API_TIMEOUTS[t])
                 t = min(t + 1, len(API_TIMEOUTS))
 
@@ -880,14 +954,16 @@ class OpenAIModel(LanguageModel):
             echo=False,
         )
 
-        if self._model_endpoint == "ChatCompletion":
-            completion = response.choices[0].message.content.strip()
+        completion = response.output_text.strip()
 
-        elif self._model_endpoint == "Completion":
-            completion = response.choices[0].text.strip()
+        #if self._model_endpoint == "ChatCompletion":
+        #    completion = response.choices[0].message.content.strip()
 
-        result["answer_raw"] = completion.strip()
-        result["answer"] = completion.strip()
+        #elif self._model_endpoint == "Completion":
+        #    completion = response.choices[0].text.strip()
+
+        result["answer_raw"] = completion
+        result["answer"] = completion
 
         return result
 
@@ -1479,6 +1555,9 @@ class LlamaModel(LanguageModel):
             "timestamp": get_timestamp(),
         }
 
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+            
         input_ids = self._format_prompt(prompt_base, prompt_system)
         
         response = self._model.generate(
@@ -2163,11 +2242,10 @@ class DeepSeekAPIModel(LanguageModel):
         )
 
         api_key = get_api_key("deepseek")
-        azure_endpoint = get_azure_endpoint()
-        self._client = AzureOpenAI(
-            api_version='2024-12-01-preview',
-            azure_endpoint=azure_endpoint,
-            api_key=api_key,
+        azure_endpoint = get_azure_endpoint('deepseek')
+        self._client = OpenAI(
+            base_url=azure_endpoint,
+            api_key=api_key
         )
 
     def _prompt_request(

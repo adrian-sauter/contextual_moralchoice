@@ -12,6 +12,11 @@ from src.models import (
     FlanT5Model,
     OptImlModel,
     PalmModel,
+    LlamaModel,
+    MistralModel,
+    QwenModel,
+    DeepSeekModel,
+    DeepSeekAPIModel,
     create_model,
 )
 from src.question_form_generator import get_question_form
@@ -98,7 +103,6 @@ for question_type in args.question_types:
     if not os.path.exists(path_model_questiontype):
         os.makedirs(path_model_questiontype)
 
-
 ################################################################################################
 # RUN EVALUATION
 ################################################################################################
@@ -143,7 +147,7 @@ for k, (identifier, scenario) in tqdm(
             }
 
             # -------------------------------
-            # 🔹 Batching-enabled evaluation
+            # Batching-enabled evaluation
             # -------------------------------
             if args.batching:
                 # Prepare all prompts for the batch
@@ -180,7 +184,7 @@ for k, (identifier, scenario) in tqdm(
                     results.append(result)
             else:
                 # -------------------------------
-                # 🔹 Standard (non-batched) eval
+                # Standard (non-batched) eval
                 # -------------------------------
                 for nb_query in range(args.eval_nb_samples):
                     result_base["eval_sample_nb"] = nb_query
