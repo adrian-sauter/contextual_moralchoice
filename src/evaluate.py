@@ -17,7 +17,7 @@ from src.models import (
 from src.question_form_generator import get_question_form
 from src.semantic_matching import token_to_action_matching
 
-from src.config import PATH_RESULTS, PATH_RESPONSE_TEMPLATES
+from src.config import PATH_RESULTS, PATH_RESPONSE_TEMPLATES, VARIATION_MAPPINGS
 
 
 ################################################################################################
@@ -31,11 +31,11 @@ parser.add_argument(
     help="Name of Experiment - used for logging",
 )
 parser.add_argument(
-    "--dataset", default="high", type=str, help="Dataset to evaluate (low or high)"
+     "--dataset", default="high", type=str, help="Dataset to evaluate (low or high)"
 )
 parser.add_argument(
     "--model-name",
-    default="openai/text-babbage-001",
+    #default="openai/text-babbage-001",
     type=str,
     help="Model to evalute --- see models.py for an overview of supported models",
 )
@@ -45,6 +45,11 @@ parser.add_argument(
     type=str,
     help="Question Templates to evaluate",
     nargs="+",
+)
+parser.add_argument(
+    "--batching",
+    action="store_true",
+    help="Enable batching for evaluation"
 )
 parser.add_argument(
     "--eval-technique",
@@ -75,7 +80,7 @@ args = parser.parse_args()
 ################################################################################################
 
 # Load scenarios
-scenarios = pd.read_csv(f"data/scenarios/moralchoice_{args.dataset}_ambiguity.csv")
+scenarios = pd.read_csv(f"data/scenarios/variations_moralchoice_{args.dataset}_ambiguity.csv")
 
 # Load refusals and common answer patterns
 with open(f"{PATH_RESPONSE_TEMPLATES}/refusals.txt", encoding="utf-8") as f:
@@ -98,6 +103,10 @@ for question_type in args.question_types:
 # RUN EVALUATION
 ################################################################################################
 model = create_model(args.model_name)
+if args.batching:
+    print(f"=== Running Evaluation with Batching Enabled ===")
+else:
+    print(f"=== Running Standard Evaluation (no batching) ===")
 
 for k, (identifier, scenario) in tqdm(
     enumerate(scenarios.iterrows()),
@@ -122,6 +131,7 @@ for k, (identifier, scenario) in tqdm(
             # Set result base dict
             result_base = {
                 "scenario_id": scenario["scenario_id"],
+                "variation": scenario["variation"],
                 "model_id": model.get_model_id(),
                 "question_type": question_type,
                 "question_ordering": question_ordering,
@@ -132,34 +142,74 @@ for k, (identifier, scenario) in tqdm(
                 "eval_temperature": args.eval_temp,
             }
 
-            for nb_query in range(args.eval_nb_samples):
-                result_base["eval_sample_nb"] = nb_query
+            # -------------------------------
+            # 🔹 Batching-enabled evaluation
+            # -------------------------------
+            if args.batching:
+                # Prepare all prompts for the batch
+                # -> batching is done in a way that all samples for a given scenario + question form + question ordering
+                #    are queried in one single batch request (if M=10, then batch size = 10)
+                prompt_bases = [question_form["question"]] * args.eval_nb_samples
+                prompt_systems = [question_form["question_header"]] * args.eval_nb_samples
 
-                # Query model
-                response = model.get_top_p_answer(
-                    prompt_base=question_form["question"],
-                    prompt_system=question_form["question_header"],
+                responses = model.get_top_p_answer_batch(
+                    prompt_bases=prompt_bases,
+                    prompt_systems=prompt_systems,
                     max_tokens=args.eval_max_tokens,
                     temperature=args.eval_temp,
                     top_p=args.eval_top_p,
                 )
 
-                # Match response (token sequence) to actions
-                response["decision"] = token_to_action_matching(
-                    response["answer"],
-                    scenario,
-                    response_patterns,
-                    question_type,
-                    action_mapping,
-                    refusals,
-                )
+                # Process batch results
+                for nb_query, response in enumerate(responses):
+                    result = {
+                        **result_base,
+                        "eval_sample_nb": nb_query,
+                        **response,
+                    }
 
-                # Log Results
-                result = {**result_base, **response}
-                results.append(result)
+                    result["decision"] = token_to_action_matching(
+                        response["answer"],
+                        scenario,
+                        response_patterns,
+                        question_type,
+                        action_mapping,
+                        refusals,
+                    )
+
+                    results.append(result)
+            else:
+                # -------------------------------
+                # 🔹 Standard (non-batched) eval
+                # -------------------------------
+                for nb_query in range(args.eval_nb_samples):
+                    result_base["eval_sample_nb"] = nb_query
+
+                    # Query model
+                    response = model.get_top_p_answer(
+                        prompt_base=question_form["question"],
+                        prompt_system=question_form["question_header"],
+                        max_tokens=args.eval_max_tokens,
+                        temperature=args.eval_temp,
+                        top_p=args.eval_top_p,
+                    )
+
+                    # Match response (token sequence) to actions
+                    response["decision"] = token_to_action_matching(
+                        response["answer"],
+                        scenario,
+                        response_patterns,
+                        question_type,
+                        action_mapping,
+                        refusals,
+                    )
+
+                    # Log Results
+                    result = {**result_base, **response}
+                    results.append(result)
 
         with open(
-            f'{path_model}/{question_type}/scenario_{scenario["scenario_id"]}.pickle',
+            f'{path_model}/{question_type}/scenario_{scenario["scenario_id"]}_{VARIATION_MAPPINGS[scenario["variation"]]}.pickle',
             "wb",
         ) as f:
             pickle.dump(pd.DataFrame(results), f, protocol=0)

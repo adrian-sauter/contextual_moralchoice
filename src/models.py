@@ -7,11 +7,13 @@ import ai21
 import cohere
 import anthropic
 import openai
+from openai import AzureOpenAI
 import google.generativeai as palm
 
 from google.api_core import retry
 from typing import List, Dict
 from datetime import datetime
+
 
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -22,7 +24,7 @@ from transformers import (
     StoppingCriteriaList,
 )
 
-from src.config import PATH_API_KEYS, PATH_HF_CACHE, PATH_OFFLOAD
+from src.config import PATH_API_KEYS, PATH_AZURE_ENDPOINT, PATH_HF_CACHE, PATH_OFFLOAD
 
 
 API_TIMEOUTS = [1, 2, 4, 8, 16, 32]
@@ -392,6 +394,119 @@ MODELS = dict(
             "likelihood_access": False,
             "endpoint": None,
         },
+        # new models:
+        "meta/llama-2-7b-chat": {
+            "company": "meta",
+            "model_class": "LlamaModel",
+            "model_name": "meta-llama/Llama-2-7b-chat-hf",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "meta/llama-3-8b-instruct": {
+            "company": "meta",
+            "model_class": "LlamaModel",
+            "model_name": "meta-llama/Meta-Llama-3-8B-instruct",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "meta/llama-3.1-8b-instruct": {
+            "company": "meta",
+            "model_class": "LlamaModel",
+            "model_name": "meta-llama/Llama-3.1-8B-instruct",
+            "8bit": True,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "meta/llama-3.1-70b-instruct": {
+            "company": "meta",
+            "model_class": "LlamaModel",
+            "model_name": "meta-llama/Llama-3.1-70B-instruct",
+            "8bit": True,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "mistral/mixtral-8x7b-instruct_8bit": {
+            "company": "mistralai",
+            "model_class": "MistralModel",
+            "model_name": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "8bit": True,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "mistral/mistral-7b-instruct-v0.1": {
+            "company": "mistralai",
+            "model_class": "MistralModel",
+            "model_name": "mistralai/Mistral-7B-Instruct-v0.1",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "teknium/openhermes-2.5-mistral-7b": {
+            "company": "teknium",
+            "model_class": "MistralModel",
+            "model_name": "teknium/OpenHermes-2.5-Mistral-7B",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "huggingfaceh4/zephyr-7b-beta": {
+            "company": "huggingface",
+            "model_class": "MistralModel",
+            "model_name": "HuggingFaceH4/zephyr-7b-beta",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "qwen/qwen1.5-7b-chat": {
+            "company": "qwen",
+            "model_class": "QwenModel",
+            "model_name": "Qwen/Qwen1.5-7B-Chat",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "qwen/qwen2-7b-instruct": {
+            "company": "qwen",
+            "model_class": "QwenModel",
+            "model_name": "Qwen/Qwen2-7B-Instruct",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "qwen/qwen3-4b-instruct": {
+            "company": "qwen",
+            "model_class": "QwenModel",
+            "model_name": "Qwen/Qwen3-4B-Instruct-2507",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "qwen/qwen3-8b": {
+            "company": "qwen",
+            "model_class": "QwenModel",
+            "model_name": "Qwen/Qwen3-8B",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "deepseek/deepseek-llm-7b-chat": {
+            "company": "deepseek",
+            "model_class": "DeepSeekModel",
+            "model_name": "deepseek-ai/deepseek-llm-7b-chat",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": None,
+        },
+        "deepseek/deepseek-V3.1": {
+            "company": "deepseek",
+            "model_class": "DeepSeekAPIModel",
+            "model_name": "Deepseek-V3.1",
+            "8bit": False,
+            "likelihood_access": True,
+            "endpoint": True,
+        },
     }
 )
 
@@ -412,6 +527,20 @@ def get_api_key(company_identifier: str) -> str:
         return key
 
     raise ValueError(f"API KEY not available at: {path_key}")
+
+
+def get_azure_endpoint() -> str:
+    """
+    Helper Function to retrieve Azure Endpoint from file
+    """
+    path_endpoint = str(PATH_AZURE_ENDPOINT / f"azure_endpoint.txt")
+
+    if os.path.exists(path_endpoint):
+        with open(path_endpoint, encoding="utf-8") as f:
+            endpoint = f.read()
+        return endpoint
+
+    raise ValueError(f"Azure Endpoint not available at: {path_endpoint}")
 
 
 def get_raw_likelihoods_from_answer(
@@ -644,7 +773,12 @@ class OpenAIModel(LanguageModel):
         )
 
         api_key = get_api_key("openai")
-        openai.api_key = api_key
+        azure_endpoint = get_azure_endpoint()
+        self._client = AzureOpenAI(
+            api_version='2024-12-01-preview',
+            azure_endpoint=azure_endpoint,
+            api_key=api_key,
+        )
 
     def _prompt_request(
         self,
@@ -667,12 +801,12 @@ class OpenAIModel(LanguageModel):
                 if self._model_endpoint == "ChatCompletion":
                     # Dialogue Format
                     messages = [
-                        {"role": "system", "content": f"{prompt_system[:-2]}"},
+                        {"role": "system", "content": f"{prompt_system[:-2]}"},  # cut off last \n\n
                         {"role": "user", "content": f"{prompt_base}"},
                     ]
 
                     # Query ChatCompletion endpoint
-                    response = openai.ChatCompletion.create(
+                    response = self._client.chat.completions.create(
                         model=self._model_name,
                         messages=messages,
                         temperature=temperature,
@@ -1235,10 +1369,898 @@ class BloomZModel(LanguageModel):
         return result
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# LLAMA MODEL WRAPPER
+# ----------------------------------------------------------------------------------------------------------------------
+
+class LlamaModel(LanguageModel):
+    """Meta Llama Model Wrapper --> Access through HuggingFace Model Hub"""
+    
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
+        assert MODELS[model_name]["model_class"] == "LlamaModel", (
+            f"Errorneous Model Instatiation for {model_name}"
+        )
+
+        # Setup Device, Model and Tokenizer
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path=self._model_name, 
+            cache_dir=PATH_HF_CACHE
+        )
+
+        # Load model
+        if MODELS[model_name]["8bit"]:
+            print(f"Loading {self._model_name} in 8-bit mode...")
+            self._quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=True
+            )
+
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                quantization_config=self._quantization_config,
+                device_map="auto",
+                #offload_folder=PATH_OFFLOAD,
+                #trust_remote_code=True,
+            )
+        else:
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                device_map="auto",
+                dtype='auto', # torch.bfloat16,
+            ).to(self._device)
+        
+        # Setup terminators for Llama models
+        self._terminators = [
+            self._tokenizer.eos_token_id,
+        ]
+        # Add eot_id terminator if it exists (Llama 3+ models)
+        self._terminators = [self._tokenizer.eos_token_id]
+        for tok in ["<|eot_id|>", "<|end_of_text|>"]:
+            if tok in self._tokenizer.get_vocab():
+                self._terminators.append(self._tokenizer.convert_tokens_to_ids(tok))
+
+    def _format_prompt(self, prompt_base: str, prompt_system: str):
+        """Format prompt using chat template for Llama models"""
+        messages = [
+            {"role": "system", "content": prompt_system.strip()},
+            {"role": "user", "content": prompt_base.strip()},
+        ]
+        
+        input_ids = self._tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt"
+        ).to(self._model.device)
+        
+        return input_ids
+
+    def get_greedy_answer(
+        self, prompt_base: str, prompt_system: str, max_tokens: int
+    ) -> str:
+        result = {
+            "timestamp": get_timestamp(),
+        }
+
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        
+        response = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=False,  # Greedy decoding
+            output_scores=True,
+            return_dict_in_generate=True,
+        )
+
+        completion = self._tokenizer.decode(
+            response.sequences[0][input_ids.shape[-1]:], 
+            skip_special_tokens=True
+        ).strip()
+        
+        result["answer_raw"] = completion
+        result["answer"] = completion
+
+        return result
+
+    def get_top_p_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ) -> str:
+        result = {
+            "timestamp": get_timestamp(),
+        }
+
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        
+        response = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True
+        )
+
+        completion = self._tokenizer.decode(
+            response.sequences[0][input_ids.shape[-1]:], 
+            skip_special_tokens=True
+        ).strip()
+        
+        result["answer_raw"] = completion
+        result["answer"] = completion
+
+        return result
+    
+    def get_top_p_answer_batch(
+    self,
+    prompt_bases: list[str],
+    prompt_systems: list[str],
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    ) -> list[dict]:
+        """
+        Batch version of get_top_p_answer for processing multiple prompts simultaneously.
+        
+        Args:
+            prompt_bases: List of base prompts
+            prompt_systems: List of system prompts (same length as prompt_bases)
+            max_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
+            top_p: Top-p sampling parameter
+            
+        Returns:
+            List of result dictionaries, one per input prompt
+        """
+        assert len(prompt_bases) == len(prompt_systems), (
+            "prompt_bases and prompt_systems must have the same length"
+        )
+        
+        batch_size = len(prompt_bases)
+        timestamp = get_timestamp()
+        
+        all_input_ids = []
+        input_lengths = []
+        
+        for prompt_base, prompt_system in zip(prompt_bases, prompt_systems):
+            messages = [
+                {"role": "system", "content": prompt_system.strip()},
+                {"role": "user", "content": prompt_base.strip()},
+            ]
+            
+            input_ids = self._tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt"
+            )
+            
+            all_input_ids.append(input_ids[0])
+            input_lengths.append(input_ids.shape[-1])
+        
+        # Pad sequences to same length (left padding for generation)
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+        
+        padded_input_ids = torch.nn.utils.rnn.pad_sequence(
+            all_input_ids,
+            batch_first=True,
+            padding_value=self._tokenizer.pad_token_id
+        ).to(self._model.device)
+        
+        attention_mask = padded_input_ids != self._tokenizer.pad_token_id
+        
+        # Top-p Sampling for batch
+        response = self._model.generate(
+            padded_input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True,
+            pad_token_id=self._tokenizer.pad_token_id,
+        )
+        
+        results = []
+        for i in range(batch_size):
+            generated_sequence = response.sequences[i]
+            
+            completion = self._tokenizer.decode(
+                generated_sequence[input_lengths[i]:],
+                skip_special_tokens=True
+            ).strip()
+            
+            result = {
+                "timestamp": timestamp,
+                "answer_raw": completion,
+                "answer": completion,
+            }
+            results.append(result)
+        
+        return results
+
+# ----------------------------------------------------------------------------------------------------------------------
+# MISTRAL MODEL WRAPPER
+# ----------------------------------------------------------------------------------------------------------------------
+class MistralModel(LanguageModel):
+    """Generic wrapper for Mistral-family instruction-tuned chat models.
+
+    Compatible with:
+        - mistralai/Mistral-7B-Instruct-v0.3
+        - mistralai/Mixtral-8x7B-Instruct-v0.1
+        - teknium/OpenHermes-2.5-Mistral-7B
+        - HuggingFaceH4/zephyr-7b-beta
+    """
+
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
+
+        # Device setup
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # Load tokenizer
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path=self._model_name,
+            cache_dir=PATH_HF_CACHE,
+        )
+
+        # Load model
+        if MODELS[model_name]["8bit"]:
+            print(f"Loading {self._model_name} in 8-bit mode...")
+            self._quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=True
+            )
+
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                quantization_config=self._quantization_config,
+                device_map="auto",
+                offload_folder=PATH_OFFLOAD,
+                trust_remote_code=True,       # Required for Mixtral, safe for others
+            )
+        else:
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                device_map="auto",
+                dtype='auto', # torch.bfloat16,
+                #trust_remote_code=True,       # Required for Mixtral, safe for others
+            ).to(self._device)
+
+        # Terminators (end-of-sequence tokens)
+        self._terminators = [self._tokenizer.eos_token_id]
+        for tok in ["<|eot_id|>", "<|end_of_text|>"]:
+            if tok in self._tokenizer.get_vocab():
+                self._terminators.append(self._tokenizer.convert_tokens_to_ids(tok))
+
+    def _format_prompt(self, prompt_base: str, prompt_system: str):
+        """Format prompt using the model's chat template."""
+        messages = [
+            {"role": "system", "content": prompt_system.strip()},
+            {"role": "user", "content": prompt_base.strip()},
+        ]
+        input_ids = self._tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt"
+        ).to(self._model.device)
+        return input_ids
+
+    def get_greedy_answer(self, prompt_base: str, prompt_system: str, max_tokens: int):
+        """Greedy decoding (temperature=0)."""
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        outputs = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=False,
+            output_scores=True,
+            return_dict_in_generate=True,
+        )
+
+        completion = self._tokenizer.decode(
+            outputs.sequences[0][input_ids.shape[-1]:],
+            skip_special_tokens=True
+        ).strip()
+
+        return {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+        }
+
+    def get_top_p_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ):
+        """Top-p (nucleus) sampling for single prompt."""
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        outputs = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True,
+        )
+
+        completion = self._tokenizer.decode(
+            outputs.sequences[0][input_ids.shape[-1]:],
+            skip_special_tokens=True
+        ).strip()
+
+        return {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+        }
+
+    def get_top_p_answer_batch(
+        self,
+        prompt_bases: list[str],
+        prompt_systems: list[str],
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ) -> list[dict]:
+        """Batch version of get_top_p_answer for multiple prompts."""
+        assert len(prompt_bases) == len(prompt_systems), (
+            "prompt_bases and prompt_systems must have the same length"
+        )
+
+        batch_size = len(prompt_bases)
+        timestamp = get_timestamp()
+
+        all_input_ids = []
+        input_lengths = []
+
+        # Prepare all prompts
+        for prompt_base, prompt_system in zip(prompt_bases, prompt_systems):
+            messages = [
+                {"role": "system", "content": prompt_system.strip()},
+                {"role": "user", "content": prompt_base.strip()},
+            ]
+            input_ids = self._tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt"
+            )
+            all_input_ids.append(input_ids[0])
+            input_lengths.append(input_ids.shape[-1])
+
+        # Ensure pad token is set
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+
+        # Pad sequences for batching
+        padded_input_ids = torch.nn.utils.rnn.pad_sequence(
+            all_input_ids,
+            batch_first=True,
+            padding_value=self._tokenizer.pad_token_id
+        ).to(self._model.device)
+
+        attention_mask = padded_input_ids != self._tokenizer.pad_token_id
+
+        # Generate batched responses
+        outputs = self._model.generate(
+            padded_input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True,
+            pad_token_id=self._tokenizer.pad_token_id,
+        )
+
+        # Decode outputs
+        results = []
+        for i in range(batch_size):
+            generated_sequence = outputs.sequences[i]
+            completion = self._tokenizer.decode(
+                generated_sequence[input_lengths[i]:],
+                skip_special_tokens=True
+            ).strip()
+
+            results.append({
+                "timestamp": timestamp,
+                "answer_raw": completion,
+                "answer": completion,
+            })
+
+        return results
+
+# ----------------------------------------------------------------------------------------------------------------------
+# QWEN MODEL WRAPPER
+# ----------------------------------------------------------------------------------------------------------------------
+class QwenModel(LanguageModel):
+    """Alibaba Qwen Model Wrapper → Access via Hugging Face Hub."""
+
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path=self._model_name,
+            cache_dir=PATH_HF_CACHE,
+            trust_remote_code=True
+        )
+        self._model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name_or_path=self._model_name,
+            cache_dir=PATH_HF_CACHE,
+            dtype="auto",
+            device_map="auto",
+            trust_remote_code=True
+        ).to(self._device)
+
+    def _format_prompt(self, prompt_base: str, prompt_system: str = ""):
+        """Format prompt using chat template for Qwen models."""
+        messages = [
+            {"role": "system", "content": prompt_system.strip()},
+            {"role": "user", "content": prompt_base.strip()},
+        ]
+        
+
+        # enable_thinking flag is only there for for Qwen3; we disable it here
+        if "Qwen3" in self._model_name:
+            disable_thinking = False
+
+        text = self._tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            **({"enable_thinking": False} if disable_thinking else {})
+        )
+        model_inputs = self._tokenizer([text], return_tensors="pt").to(self._model.device)
+        return model_inputs
+
+    def get_greedy_answer(self, prompt_base: str, prompt_system: str, max_tokens: int):
+        result = {"timestamp": get_timestamp()}
+        model_inputs = self._format_prompt(prompt_base, prompt_system)
+
+        generated_ids = self._model.generate(
+            **model_inputs,
+            max_new_tokens=max_tokens,
+        )
+
+        output_ids = generated_ids[0][len(model_inputs.input_ids[0]):]
+        completion = self._tokenizer.decode(output_ids, skip_special_tokens=True).strip()
+
+        result["answer_raw"] = completion
+        result["answer"] = completion
+        return result
+
+    def get_top_p_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ):
+        result = {"timestamp": get_timestamp()}
+        model_inputs = self._format_prompt(prompt_base, prompt_system)
+
+        generated_ids = self._model.generate(
+            **model_inputs,
+            max_new_tokens=max_tokens,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+        )
+
+        output_ids = generated_ids[0][len(model_inputs.input_ids[0]):]
+        completion = self._tokenizer.decode(output_ids, skip_special_tokens=True).strip()
+
+        result["answer_raw"] = completion
+        result["answer"] = completion
+        return result
+
+    def get_top_p_answer_batch(
+        self,
+        prompt_bases: list[str],
+        prompt_systems: list[str],
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ):
+        """
+        Batch version of top-p sampling for multiple prompts.
+        """
+        assert len(prompt_bases) == len(prompt_systems), (
+            "prompt_bases and prompt_systems must have the same length"
+        )
+        timestamp = get_timestamp()
+
+        # Format all prompts
+        all_input_ids, input_lengths = [], []
+        for prompt_base, prompt_system in zip(prompt_bases, prompt_systems):
+            messages = [
+            {"role": "system", "content": prompt_system.strip()},
+            {"role": "user", "content": prompt_base.strip()},
+            ]
+
+            disable_thinking = "Qwen3" in self._model_name
+            text = self._tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                **({"enable_thinking": False} if disable_thinking else {})
+            )
+            input_ids = self._tokenizer([text], return_tensors="pt")["input_ids"][0]
+            all_input_ids.append(input_ids)
+            input_lengths.append(len(input_ids))
+
+        # Padding
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+        padded_input_ids = torch.nn.utils.rnn.pad_sequence(
+            all_input_ids,
+            batch_first=True,
+            padding_value=self._tokenizer.pad_token_id,
+        ).to(self._model.device)
+        attention_mask = padded_input_ids != self._tokenizer.pad_token_id
+
+        # Generation
+        outputs = self._model.generate(
+            input_ids=padded_input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_tokens,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            pad_token_id=self._tokenizer.pad_token_id,
+        )
+
+        # Decode
+        results = []
+        for i in range(len(prompt_bases)):
+            new_tokens = outputs[i][input_lengths[i]:]
+            completion = self._tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            results.append({
+                "timestamp": timestamp,
+                "answer_raw": completion,
+                "answer": completion,
+            })
+
+        return results
+
+# ----------------------------------------------------------------------------------------------------------------------
+# DeepSeek MODEL WRAPPER
+# ----------------------------------------------------------------------------------------------------------------------
+class DeepSeekModel(LanguageModel):
+    """Generic wrapper for DeepSeek-family instruction-tuned chat models.
+
+    Compatible with:
+        - deepseek-llm-7b-chat
+    """
+
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
+
+        # Device setup
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # Load tokenizer
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path=self._model_name,
+            cache_dir=PATH_HF_CACHE,
+        )
+
+        # Load model
+        if MODELS[model_name]["8bit"]:
+            print(f"Loading {self._model_name} in 8-bit mode...")
+            self._quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=True
+            )
+
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                quantization_config=self._quantization_config,
+                device_map="auto",
+                offload_folder=PATH_OFFLOAD,
+            )
+        else:
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                device_map="auto",
+                dtype='auto', #torch.bfloat16,
+            ).to(self._device)
+
+        # Terminators (end-of-sequence tokens)
+        self._terminators = [self._tokenizer.eos_token_id]
+        for tok in ["<|im_end|>", "<|endoftext|>", "<|eos|>"]:
+            if tok in self._tokenizer.get_vocab():
+                self._terminators.append(self._tokenizer.convert_tokens_to_ids(tok))
+
+    def _format_prompt(self, prompt_base: str, prompt_system: str):
+        """Format prompt using the model's chat template."""
+        messages = [
+            {"role": "system", "content": prompt_system.strip()},
+            {"role": "user", "content": prompt_base.strip()},
+        ]
+        input_ids = self._tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt"
+        ).to(self._model.device)
+        return input_ids
+
+    def get_greedy_answer(self, prompt_base: str, prompt_system: str, max_tokens: int):
+        """Greedy decoding (temperature=0)."""
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        outputs = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=False,
+            output_scores=True,
+            return_dict_in_generate=True,
+        )
+
+        completion = self._tokenizer.decode(
+            outputs.sequences[0][input_ids.shape[-1]:],
+            skip_special_tokens=True
+        ).strip()
+
+        return {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+        }
+
+    def get_top_p_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ):
+        """Top-p (nucleus) sampling for single prompt."""
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        outputs = self._model.generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True,
+        )
+
+        completion = self._tokenizer.decode(
+            outputs.sequences[0][input_ids.shape[-1]:],
+            skip_special_tokens=True
+        ).strip()
+
+        return {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+        }
+
+    def get_top_p_answer_batch(
+        self,
+        prompt_bases: list[str],
+        prompt_systems: list[str],
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ) -> list[dict]:
+        """Batch version of get_top_p_answer for multiple prompts."""
+        assert len(prompt_bases) == len(prompt_systems), (
+            "prompt_bases and prompt_systems must have the same length"
+        )
+
+        batch_size = len(prompt_bases)
+        timestamp = get_timestamp()
+
+        all_input_ids = []
+        input_lengths = []
+
+        # Prepare all prompts
+        for prompt_base, prompt_system in zip(prompt_bases, prompt_systems):
+            messages = [
+                {"role": "system", "content": prompt_system.strip()},
+                {"role": "user", "content": prompt_base.strip()},
+            ]
+            input_ids = self._tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt"
+            )
+            all_input_ids.append(input_ids[0])
+            input_lengths.append(input_ids.shape[-1])
+
+        # Ensure pad token is set
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+
+        # Pad sequences for batching
+        padded_input_ids = torch.nn.utils.rnn.pad_sequence(
+            all_input_ids,
+            batch_first=True,
+            padding_value=self._tokenizer.pad_token_id
+        ).to(self._model.device)
+
+        attention_mask = padded_input_ids != self._tokenizer.pad_token_id
+
+        # Generate batched responses
+        outputs = self._model.generate(
+            padded_input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_tokens,
+            eos_token_id=self._terminators,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            output_scores=False,
+            return_dict_in_generate=True,
+            use_cache=True,
+            pad_token_id=self._tokenizer.pad_token_id,
+        )
+
+        # Decode outputs
+        results = []
+        for i in range(batch_size):
+            generated_sequence = outputs.sequences[i]
+            completion = self._tokenizer.decode(
+                generated_sequence[input_lengths[i]:],
+                skip_special_tokens=True
+            ).strip()
+
+            results.append({
+                "timestamp": timestamp,
+                "answer_raw": completion,
+                "answer": completion,
+            })
+
+        return results
+    
+
+# ----------------------------------------------------------------------------------------------------------------------
+# DeepSeek API MODEL WRAPPER
+# ----------------------------------------------------------------------------------------------------------------------
+class DeepSeekAPIModel(LanguageModel):
+    """DeepSeek API Wrapper"""
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
+        assert MODELS[model_name]["model_class"] == "DeepSeekAPIModel", (
+            f"Errorneous Model Instatiation for {model_name}"
+        )
+
+        api_key = get_api_key("deepseek")
+        azure_endpoint = get_azure_endpoint()
+        self._client = AzureOpenAI(
+            api_version='2024-12-01-preview',
+            azure_endpoint=azure_endpoint,
+            api_key=api_key,
+        )
+
+    def _prompt_request(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: int = 1,
+        stop: List = ["Human:", " AI:"],
+        echo: bool = False,
+    ):
+        success = False
+        t = 0
+
+        while not success:
+            try:
+                messages = [
+                    {"role": "system", "content": f"{prompt_system[:-2]}"},  # cut off last \n\n
+                    {"role": "user", "content": f"{prompt_base}"},
+                ]
+
+                # Query ChatCompletion endpoint
+                response = self._client.chat.completions.create(
+                    model=self._model_name,
+                    messages=messages,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                )
+
+                # Set success flag
+                success = True
+
+            except:
+                time.sleep(API_TIMEOUTS[t])
+                t = min(t + 1, len(API_TIMEOUTS))
+
+        return response
+
+    def get_greedy_answer(
+        self, prompt_base: str, prompt_system: str, max_tokens: int
+    ) -> str:
+        return self.get_top_p_answer(
+            prompt_base=prompt_base,
+            prompt_system=prompt_system,
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1.0,
+        )
+
+    def get_top_p_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ) -> str:
+        result = {
+            "timestamp": get_timestamp(),
+        }
+
+        # (1) Top-P Sampling
+        response = self._prompt_request(
+            prompt_base=prompt_base,
+            prompt_system=prompt_system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+            logprobs=1,
+            stop=["Human:", " AI:"],
+            echo=False,
+        )
+
+        completion = response.choices[0].message.content.strip()
+
+        result["answer_raw"] = completion.strip()
+        result["answer"] = completion.strip()
+
+        return result
+
+
 ####################################################################################
 # MODEL CREATOR
 ####################################################################################
-
 
 def create_model(model_name):
     """Init Models from model_name only"""

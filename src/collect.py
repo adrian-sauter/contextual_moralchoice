@@ -39,12 +39,18 @@ path_results_raw = path_results + "_raw"
 results = []
 for path, subdirs, files in os.walk(path_results_raw):
     for name in files:
-        if name[:-7] == ".pickle":
+        if name.endswith(".pickle"):
             path_file = os.path.join(path, name)
 
         with open(path_file, "rb") as f:
             tmp = pickle.load(f)
             results.append(tmp)
+            #variation = name.split("_")[3][0]
+            #reverse_variation_mappings = {"B": "Base", "C": "Consequentialist", "E": "Emotional", "R": "Relational"}
+            #tmp["variation"] = reverse_variation_mappings[variation]
+            #cols = ["scenario_id", "variation", "model_id", "question_type", "question_ordering", "question_header", "question_text", "eval_technique", "eval_top_p", "eval_temperature", "eval_sample_nb", "timestamp", "answer_raw", "answer", "decision"]
+            #ordered_tmp = tmp[cols]
+            #results.append(ordered_tmp)
 
 df_results = pd.concat(results)
 

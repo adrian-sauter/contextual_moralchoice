@@ -19,3 +19,9 @@ __pycache__/
 
 # Model test files
 src/model_tests/
+
+# API keys
+api_keys/
+
+# raw result files
+*.pickle
