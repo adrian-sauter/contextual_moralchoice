@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import time
+from unittest import result
 import torch
 import ai21
 import cohere
@@ -24,7 +25,7 @@ from transformers import (
     StoppingCriteriaList,
 )
 
-from transformerlens import HookedTransformer
+from transformer_lens import HookedTransformer
 
 from src.config import PATH_API_KEYS, PATH_AZURE_ENDPOINT, PATH_HF_CACHE, PATH_OFFLOAD
 
@@ -435,6 +436,7 @@ MODELS = dict(
             "company": "meta",
             "model_class": "LlamaModel",
             "model_name": "meta-llama/Meta-Llama-3-8B-instruct",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -443,6 +445,7 @@ MODELS = dict(
             "company": "meta",
             "model_class": "LlamaModel",
             "model_name": "meta-llama/Llama-3.1-8B-instruct",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -491,6 +494,7 @@ MODELS = dict(
             "company": "qwen",
             "model_class": "QwenModel",
             "model_name": "Qwen/Qwen1.5-7B-Chat",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -499,6 +503,7 @@ MODELS = dict(
             "company": "qwen",
             "model_class": "QwenModel",
             "model_name": "Qwen/Qwen2-7B-Instruct",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -507,6 +512,7 @@ MODELS = dict(
             "company": "qwen",
             "model_class": "QwenModel",
             "model_name": "Qwen/Qwen3-4B-Instruct-2507",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -515,6 +521,7 @@ MODELS = dict(
             "company": "qwen",
             "model_class": "QwenModel",
             "model_name": "Qwen/Qwen3-8B",
+            "transformerlens_compatible": True,
             "8bit": False,
             "likelihood_access": True,
             "endpoint": None,
@@ -1462,7 +1469,7 @@ class LlamaModel(LanguageModel):
 
         # Setup Device, Model and Tokenizer
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        
+        self.load_with_transformerlens = load_with_transformerlens
         self._tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path=self._model_name, 
             cache_dir=PATH_HF_CACHE
@@ -1475,6 +1482,7 @@ class LlamaModel(LanguageModel):
                 cache_dir=PATH_HF_CACHE,
                 device=self._device,
             )
+            self.n_layers = self._model.cfg.n_layers
         
         else:
             print(f"Loading {self._model_name} with HuggingFace Transformers...")
@@ -1520,7 +1528,12 @@ class LlamaModel(LanguageModel):
             messages,
             add_generation_prompt=True,
             return_tensors="pt"
-        ).to(self._model.device)
+        )
+        # HookedTransformer stores the device in model.cfg
+        if self.load_with_transformerlens:
+            input_ids = input_ids.to(self._model.cfg.device)
+        else:
+            input_ids = input_ids.to(self._model.device)
         return input_ids
 
     def get_greedy_answer(
@@ -1589,44 +1602,7 @@ class LlamaModel(LanguageModel):
         result["answer"] = completion
 
         return result
-    
-    def get_activations(
-        self,
-        prompt_base: str,
-        prompt_system: str,
-        layers: list[int],
-        loc: str = "hook_resid_post",
-        last_token_only: bool = True,
-    ):
-        """
-        Extract activations for multiple layers in one forward pass.
-        Returns dict: layer -> activation.
-        """
-        assert isinstance(self._model, HookedTransformer)
-        layers = sorted(set(int(L) for L in layers))
-        for L in layers:
-            assert 0 <= L < self._model.cfg.n_layers, f"layer out of range: {L}"
 
-        hook_names = {f"blocks.{L}.{loc}" for L in layers}
-
-        toks = self._format_prompt(prompt_base, prompt_system)
-
-        with torch.no_grad():
-            _, cache = self._model.run_with_cache(
-                toks,
-                names_filter=lambda n: n in hook_names,
-            )
-
-        out = {}
-        for L in layers:
-            key = f"blocks.{L}.{loc}"
-            act = cache[key]  # [1, seq, d_model]
-            if last_token_only:
-                out[L] = act[0, -1, :].detach().cpu()
-            else:
-                out[L] = act[0, :, :].detach().cpu()
-        return out
-    
     def _get_single_token_id_tl(self, candidates) -> int:
         """Find a single-token ID in TransformerLens for one of the candidate strings."""
         for s in candidates:
@@ -1641,71 +1617,215 @@ class LlamaModel(LanguageModel):
         Robustly find token IDs for A and B in this prompting setup.
         After a chat template assistant prefix, '\nA'/'\nB' are often single tokens.
         """
-        A_id = self._get_single_token_id_tl(["\nA", " A", "A"])
-        B_id = self._get_single_token_id_tl(["\nB", " B", "B"])
+        A_id = self._get_single_token_id_tl(["A", "\nA", " A"])
+        B_id = self._get_single_token_id_tl(["B", "\nB", " B"])
         return A_id, B_id
-
-    @torch.no_grad()
-    def get_action2_scores(
+    
+    def get_activations_and_scores(
         self,
         prompt_base: str,
         prompt_system: str,
-        action_mapping: Dict[str, str],
+        layers: list[int],
+        action_mapping: Dict[str, str] = None,
+        loc: str = "hook_resid_post",
         return_probs: bool = False,
-    ) -> Dict[str, float]:
+    ) -> Dict:
         """
-        Compute an ordering-invariant score for semantic action2 at the A/B decision point.
-
-        Args:
-        prompt_base: the question text (your question_form["question"])
-        prompt_system: system instruction string (can be empty)
-        action_mapping: from get_question_form, mapping letter -> action name
-            e.g. {"A":"action1","B":"action2"} or {"A":"action2","B":"action1"}
-        return_probs: if True, also returns P(action2) from full-vocab softmax.
-
-        Returns dict:
-        - action2_letter: "A" or "B"
-        - logit_A, logit_B
-        - margin_action2_minus_action1  (recommended for weights)
-        - (optional) prob_action2
+        Extracts activations and computes A/B logits/probs in a single forward pass.
         """
-        assert isinstance(self._model, HookedTransformer), (
-            "get_action2_scores expects a TransformerLens HookedTransformer model."
-        )
-        assert action_mapping.get("A") in {"action1", "action2"}
-        assert action_mapping.get("B") in {"action1", "action2"}
-        assert action_mapping["A"] != action_mapping["B"]
+        assert isinstance(self._model, HookedTransformer), "AS: Model must be loaded with TransformerLens for activation extraction."
 
-        action2_letter = "A" if action_mapping["A"] == "action2" else "B"
-        action1_letter = "B" if action2_letter == "A" else "A"
+        timestamp = get_timestamp()
+        
+        layers = sorted(set(int(L) for L in layers))
+        
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        
+        with torch.no_grad():
+            logits, cache = self._model.run_with_cache(
+                input_ids
+            )
+        
+        activations = {}
+        for L in layers:
+            act = cache[f"blocks.{L}.{loc}"]
+            activations[f'layer_{L}'] = act[0, -1, :].detach().cpu()
 
-        A_id, B_id = self._get_ab_token_ids_tl()
+        # extract logits/probs for A/B actions if action_mapping is provided
+        scores = {}
+        if action_mapping:
+            A_id, B_id = self._get_ab_token_ids_tl()
+            
+            # extract logits at the very last token
+            last_token_logits = logits[0, -1, :]
+            logit_A = float(last_token_logits[A_id].item())
+            logit_B = float(last_token_logits[B_id].item())
+            
+            action2_letter = "A" if action_mapping["A"] == "action2" else "B"
+            logit_action2 = logit_A if action2_letter == "A" else logit_B
+            logit_action1 = logit_B if action2_letter == "A" else logit_A
 
-        toks = self._format_prompt(prompt_base, prompt_system)
+            # top_10_probable_tokens = torch.topk(last_token_logits, k=10)
+            # print("Top 10 probable tokens and their logits:")
+            # for token_id, logit in zip(top_10_probable_tokens.indices, top_10_probable_tokens.values):
+            #     token_str = self._tokenizer.decode(token_id).strip()
+            #     print(f"Token: '{token_str}' (ID: {token_id.item()}), Logit: {logit.item()}")
+            
+            scores = {
+                "logit_A": logit_A,
+                "logit_B": logit_B,
+                "logit_action1": logit_action1,
+                "logit_action2": logit_action2,
+                "action2_letter": action2_letter
+            }
+            
+            # normalize to probabilities
+            if return_probs:
+                ## global softmax
+                # probs = torch.softmax(last_token_logits, dim=-1)
+                # scores["prob_A"] = float(probs[A_id].item())
+                # scores["prob_B"] = float(probs[B_id].item())
+                # scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
 
-        logits = self._model(toks)[0, -1, :]
-        logit_A = float(logits[A_id].item())
-        logit_B = float(logits[B_id].item())
-
-        # Map to action1/action2 logits
-        logit_action2 = logit_A if action2_letter == "A" else logit_B
-        logit_action1 = logit_B if action2_letter == "A" else logit_A
-        margin = logit_action2 - logit_action1
-
-        out = {
-            "action2_letter": action2_letter,
-            "logit_A": logit_A,
-            "logit_B": logit_B,
-            "margin_action2_minus_action1": float(margin),
+                # binary softmax
+                relevant_logits = torch.tensor([logit_A, logit_B])
+                binary_probs = torch.softmax(relevant_logits, dim=0)
+                scores["prob_A"] = float(binary_probs[0].item())
+                scores["prob_B"] = float(binary_probs[1].item())
+                scores["prob_action1"] = scores["prob_B"] if action2_letter == "A" else scores["prob_A"]
+                scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
+    
+        return {
+            "timestamp": timestamp,
+            "activations": activations,
+            "scores": scores
         }
 
-        # normalize across vocabulary
+    def get_steered_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        steering_vector: torch.Tensor,
+        layer: int,
+        alpha: float = 1.0,
+        renormalize: bool = True,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        loc: str = "hook_resid_post",
+        steering_mode: str = "all_positions",  # "last_token", "generated_only", "all_positions"
+        action_mapping: Dict[str, str] = None,
+        return_probs: bool = False,
+    ) -> Dict:
+        """
+        Core steering function with three intervention modes and magnitude normalization.
+        """
+        STEERING_MODES = ["last_token", "generated_only", "all_positions"]
+        assert steering_mode in STEERING_MODES, f"Invalid mode. Choose from {STEERING_MODES}"
+        assert self.load_with_transformerlens, "Steering requires HookedTransformer"
+        
+        steering_vector = steering_vector.to(self._model.cfg.device)
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        # prompt_len = input_ids.shape[1]
+
+        def steering_hook(value: torch.Tensor, hook):
+            """
+            value shape: [batch, current_seq_len, d_model]
+            Note: During generation, current_seq_len is 1 because of KV-caching.
+            """
+            steered_act = value.clone()
+            current_seq_len = value.shape[1]
+            
+            is_prefill = current_seq_len > 1
+
+            #print(f"Layer {hook.layer()} | Mode: {steering_mode} | Seq Len: {current_seq_len}")
+            #print(f"Steering vector shape: {steering_vector.shape}")
+            #print(f"Activation shape: {value.shape}")
+
+            if steering_mode == "all_positions":
+                steered_act += alpha * steering_vector
+
+            elif steering_mode == "last_token":
+                if is_prefill:
+                    steered_act[:, -1, :] += alpha * steering_vector
+
+            elif steering_mode == "generated_only":
+                if not is_prefill:
+                    steered_act += alpha * steering_vector
+
+            if renormalize:
+                # Formula: (act + vec) / ||act + vec|| * ||act||
+                original_norm = value.norm(p=2, dim=-1, keepdim=True)
+                steered_norm = steered_act.norm(p=2, dim=-1, keepdim=True)
+                steered_act = (steered_act / steered_norm) * original_norm
+
+            return steered_act
+        
+        scores = {}
         if return_probs:
-            probs = torch.softmax(logits, dim=-1)
-            pA = float(probs[A_id].item())
-            pB = float(probs[B_id].item())
-            out["prob_action2"] = pA if action2_letter == "A" else pB
-        return out
+            if not action_mapping:
+                raise ValueError("To return probabilities, action_mapping must be provided for identifying A/B tokens.")
+            with torch.no_grad():
+                with self._model.hooks(fwd_hooks=[(f"blocks.{layer}.{loc}", steering_hook)]):
+                    logits = self._model(input_ids)
+            
+            A_id, B_id = self._get_ab_token_ids_tl()
+
+            last_token_logits = logits[0, -1, :]
+            
+            logit_A = float(last_token_logits[A_id].item())
+            logit_B = float(last_token_logits[B_id].item())
+            
+            action2_letter = "A" if action_mapping["A"] == "action2" else "B"
+            logit_action2 = logit_A if action2_letter == "A" else logit_B
+            logit_action1 = logit_B if action2_letter == "A" else logit_A
+            
+            scores = {
+                "logit_A": logit_A,
+                "logit_B": logit_B,
+                "logit_action1": logit_action1,
+                "logit_action2": logit_action2,
+                "action2_letter": action2_letter
+            }
+            
+            relevant_logits = torch.tensor([logit_A, logit_B])
+            binary_probs = torch.softmax(relevant_logits, dim=0)
+            scores["prob_A"] = float(binary_probs[0].item())
+            scores["prob_B"] = float(binary_probs[1].item())
+            scores["prob_action1"] = scores["prob_B"] if action2_letter == "A" else scores["prob_A"]
+            scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
+
+        with self._model.hooks(fwd_hooks=[(f"blocks.{layer}.{loc}", steering_hook)]):
+            response = self._model.generate(
+                input_ids,
+                max_new_tokens=max_tokens,
+                eos_token_id=self._terminators,
+                do_sample=True if temperature > 0 else False,
+                temperature=temperature,
+                top_p=top_p,
+                stop_at_eos=True,
+                verbose=False,
+                prepend_bos=False # Llama-3 tokens handled by chat template
+            )
+
+        completion_ids = response[0][input_ids.shape[-1]:]
+        completion = self._tokenizer.decode(completion_ids, skip_special_tokens=True).strip()
+
+        result =  {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+            "steering_config": {
+                "layer": layer,
+                "alpha": alpha,
+                "mode": steering_mode,
+                "renormalized": renormalize
+            }
+        }
+        if scores:
+            result["scores"] = scores
+        return result
+
         
     def get_top_p_answer_batch(
     self,
@@ -1859,7 +1979,7 @@ class MistralModel(LanguageModel):
         messages = [
             {"role": "system", "content": prompt_system.strip()},
             {"role": "user", "content": prompt_base.strip()},
-        ]
+        ] 
         input_ids = self._tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
@@ -2007,22 +2127,33 @@ class MistralModel(LanguageModel):
 class QwenModel(LanguageModel):
     """Alibaba Qwen Model Wrapper → Access via Hugging Face Hub."""
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, load_with_transformerlens: bool = False):
         super().__init__(model_name)
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        self.load_with_transformerlens = load_with_transformerlens
         self._tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path=self._model_name,
             cache_dir=PATH_HF_CACHE,
             trust_remote_code=True
         )
-        self._model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name_or_path=self._model_name,
-            cache_dir=PATH_HF_CACHE,
-            dtype="auto",
-            device_map="auto",
-            trust_remote_code=True
-        ).to(self._device)
+        if load_with_transformerlens:
+            print(f"Loading {self._model_name} with TransformerLens...")
+            self._model = HookedTransformer.from_pretrained(
+                self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                device=self._device,
+                trust_remote_code=True
+            )
+            self.n_layers = self._model.cfg.n_layers
+        else:
+            print(f"Loading {self._model_name} with HuggingFace Transformers...")
+            self._model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=self._model_name,
+                cache_dir=PATH_HF_CACHE,
+                dtype="auto",
+                device_map="auto",
+                trust_remote_code=True
+            ).to(self._device)
 
     def _format_prompt(self, prompt_base: str, prompt_system: str = ""):
         """Format prompt using chat template for Qwen models."""
@@ -2030,20 +2161,43 @@ class QwenModel(LanguageModel):
             {"role": "system", "content": prompt_system.strip()},
             {"role": "user", "content": prompt_base.strip()},
         ]
-        
-
+    
         # enable_thinking flag is only there for for Qwen3; we disable it here
+        # if "Qwen3" in self._model_name:
+        #     enable_thinking = False
         if "Qwen3" in self._model_name:
-            disable_thinking = False
+            input_ids = self._tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                **({"enable_thinking": False})
+            )
+        else:
+            input_ids = self._tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
+            
+        # HookedTransformer stores the device in model.cfg
+        if self.load_with_transformerlens:
+            input_ids = input_ids.to(self._model.cfg.device)
+        else:
+            input_ids = input_ids.to(self._model.device)
+        return input_ids
 
-        text = self._tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            **({"enable_thinking": False} if disable_thinking else {})
-        )
-        model_inputs = self._tokenizer([text], return_tensors="pt").to(self._model.device)
-        return model_inputs
+        # text = self._tokenizer.apply_chat_template(
+        #     messages,
+        #     tokenize=False,
+        #     add_generation_prompt=True,
+        #     **({"enable_thinking": False} if disable_thinking else {})
+        # )
+        # # HookedTransformer stores the device in model.cfg
+        # if self._load_with_transformerlens:
+        #     model_inputs = self._tokenizer([text], return_tensors="pt").to(self._model.cfg.device)
+        # else:
+        #     model_inputs = self._tokenizer([text], return_tensors="pt").to(self._model.device)
+        # return model_inputs
 
     def get_greedy_answer(self, prompt_base: str, prompt_system: str, max_tokens: int):
         result = {"timestamp": get_timestamp()}
@@ -2086,6 +2240,229 @@ class QwenModel(LanguageModel):
         result["answer_raw"] = completion
         result["answer"] = completion
         return result
+    
+    def _get_single_token_id_tl(self, candidates) -> int:
+        """Find a single-token ID in TransformerLens for one of the candidate strings."""
+        for s in candidates:
+            try:
+                return int(self._model.to_single_token(s))
+            except Exception:
+                continue
+        raise ValueError(f"Could not find a single-token id among candidates: {candidates}")
+
+    def _get_ab_token_ids_tl(self) -> Tuple[int, int]:
+        """
+        Robustly find token IDs for A and B in this prompting setup.
+        After a chat template assistant prefix, '\nA'/'\nB' are often single tokens.
+        """
+        A_id = self._get_single_token_id_tl(["A", "\nA", " A"])
+        B_id = self._get_single_token_id_tl(["B", "\nB", " B"])
+        return A_id, B_id
+    
+    def get_activations_and_scores(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        layers: list[int],
+        action_mapping: Dict[str, str] = None,
+        loc: str = "hook_resid_post",
+        return_probs: bool = False,
+    ) -> Dict:
+        """
+        Extracts activations and computes A/B logits/probs in a single forward pass.
+        """
+        assert isinstance(self._model, HookedTransformer), "AS: Model must be loaded with TransformerLens for activation extraction."
+
+        timestamp = get_timestamp()
+        
+        layers = sorted(set(int(L) for L in layers))
+        
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        
+        with torch.no_grad():
+            logits, cache = self._model.run_with_cache(
+                input_ids
+            )
+        
+        activations = {}
+        for L in layers:
+            act = cache[f"blocks.{L}.{loc}"]
+            activations[f'layer_{L}'] = act[0, -1, :].detach().cpu()
+
+        # extract logits/probs for A/B actions if action_mapping is provided
+        scores = {}
+        if action_mapping:
+            A_id, B_id = self._get_ab_token_ids_tl()
+            
+            # extract logits at the very last token
+            last_token_logits = logits[0, -1, :]
+            logit_A = float(last_token_logits[A_id].item())
+            logit_B = float(last_token_logits[B_id].item())
+            
+            action2_letter = "A" if action_mapping["A"] == "action2" else "B"
+            logit_action2 = logit_A if action2_letter == "A" else logit_B
+            logit_action1 = logit_B if action2_letter == "A" else logit_A
+
+            top_10_probable_tokens = torch.topk(last_token_logits, k=10)
+            print("Top 10 probable tokens and their logits:")
+            for token_id, logit in zip(top_10_probable_tokens.indices, top_10_probable_tokens.values):
+                token_str = self._tokenizer.decode(token_id).strip()
+                print(f"Token: '{token_str}' (ID: {token_id.item()}), Logit: {logit.item()}")
+            
+            scores = {
+                "logit_A": logit_A,
+                "logit_B": logit_B,
+                "logit_action1": logit_action1,
+                "logit_action2": logit_action2,
+                "action2_letter": action2_letter
+            }
+            
+            # normalize to probabilities
+            if return_probs:
+                ## global softmax
+                # probs = torch.softmax(last_token_logits, dim=-1)
+                # scores["prob_A"] = float(probs[A_id].item())
+                # scores["prob_B"] = float(probs[B_id].item())
+                # scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
+
+                # binary softmax
+                relevant_logits = torch.tensor([logit_A, logit_B])
+                binary_probs = torch.softmax(relevant_logits, dim=0)
+                scores["prob_A"] = float(binary_probs[0].item())
+                scores["prob_B"] = float(binary_probs[1].item())
+                scores["prob_action1"] = scores["prob_B"] if action2_letter == "A" else scores["prob_A"]
+                scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
+    
+        return {
+            "timestamp": timestamp,
+            "activations": activations,
+            "scores": scores
+        }
+
+    def get_steered_answer(
+        self,
+        prompt_base: str,
+        prompt_system: str,
+        max_tokens: int,
+        steering_vector: torch.Tensor,
+        layer: int,
+        alpha: float = 1.0,
+        renormalize: bool = True,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        loc: str = "hook_resid_post",
+        steering_mode: str = "all_positions",  # "last_token", "generated_only", "all_positions"
+        action_mapping: Dict[str, str] = None,
+        return_probs: bool = False,
+    ) -> Dict:
+        """
+        Core steering function with three intervention modes and magnitude normalization.
+        """
+        STEERING_MODES = ["last_token", "generated_only", "all_positions"]
+        assert steering_mode in STEERING_MODES, f"Invalid mode. Choose from {STEERING_MODES}"
+        assert self.load_with_transformerlens, "Steering requires HookedTransformer"
+        
+        # 1. Setup
+        steering_vector = steering_vector.to(self._model.cfg.device)
+        input_ids = self._format_prompt(prompt_base, prompt_system)
+        # prompt_len is critical for 'generated_only' mode
+        prompt_len = input_ids.shape[1]
+
+        def steering_hook(value: torch.Tensor, hook):
+            """
+            value shape: [batch, current_seq_len, d_model]
+            Note: During generation, current_seq_len is 1 because of KV-caching.
+            """
+            steered_act = value.clone()
+            current_seq_len = value.shape[1]
+            
+            is_prefill = current_seq_len > 1
+
+            #print(f"Layer {hook.layer()} | Mode: {steering_mode} | Seq Len: {current_seq_len}")
+
+            if steering_mode == "all_positions":
+                steered_act += alpha * steering_vector
+
+            elif steering_mode == "last_token":
+                if is_prefill:
+                    steered_act[:, -1, :] += alpha * steering_vector
+
+            elif steering_mode == "generated_only":
+                if not is_prefill:
+                    steered_act += alpha * steering_vector
+
+            if renormalize:
+                # Formula: (act + vec) / ||act + vec|| * ||act||
+                original_norm = value.norm(p=2, dim=-1, keepdim=True)
+                steered_norm = steered_act.norm(p=2, dim=-1, keepdim=True)
+                steered_act = (steered_act / (steered_norm + 1e-8)) * original_norm
+
+            return steered_act
+        
+        
+        scores = {}
+        if return_probs:
+            if not action_mapping:
+                raise ValueError("To return probabilities, action_mapping must be provided for identifying A/B tokens.")
+            with torch.no_grad():
+                with self._model.hooks(fwd_hooks=[(f"blocks.{layer}.{loc}", steering_hook)]):
+                    logits = self._model(input_ids)
+            
+            A_id, B_id = self._get_ab_token_ids_tl()
+
+            last_token_logits = logits[0, -1, :]
+            
+            logit_A = float(last_token_logits[A_id].item())
+            logit_B = float(last_token_logits[B_id].item())
+            
+            action2_letter = "A" if action_mapping["A"] == "action2" else "B"
+            logit_action2 = logit_A if action2_letter == "A" else logit_B
+            logit_action1 = logit_B if action2_letter == "A" else logit_A
+            
+            scores = {
+                "logit_A": logit_A,
+                "logit_B": logit_B,
+                "logit_action1": logit_action1,
+                "logit_action2": logit_action2,
+                "action2_letter": action2_letter
+            }
+            
+            relevant_logits = torch.tensor([logit_A, logit_B])
+            binary_probs = torch.softmax(relevant_logits, dim=0)
+            scores["prob_A"] = float(binary_probs[0].item())
+            scores["prob_B"] = float(binary_probs[1].item())
+            scores["prob_action1"] = scores["prob_B"] if action2_letter == "A" else scores["prob_A"]
+            scores["prob_action2"] = scores["prob_A"] if action2_letter == "A" else scores["prob_B"]
+
+        with self._model.hooks(fwd_hooks=[(f"blocks.{layer}.{loc}", steering_hook)]):
+            response = self._model.generate(
+                input_ids,
+                max_new_tokens=max_tokens,
+                #eos_token_id=self._terminators,
+                do_sample=True if temperature > 0 else False,
+                temperature=temperature,
+                top_p=top_p,
+                verbose=False,
+            )
+
+        completion_ids = response[0][input_ids.shape[-1]:]
+        completion = self._tokenizer.decode(completion_ids, skip_special_tokens=True).strip()
+
+        result = {
+            "timestamp": get_timestamp(),
+            "answer_raw": completion,
+            "answer": completion,
+            "steering_config": {
+                "layer": layer,
+                "alpha": alpha,
+                "mode": steering_mode,
+                "renormalized": renormalize
+            }
+        }
+        if scores:
+            result["scores"] = scores
+        return result
+        
 
     def get_top_p_answer_batch(
         self,
@@ -2465,11 +2842,16 @@ class DeepSeekAPIModel(LanguageModel):
 # MODEL CREATOR
 ####################################################################################
 
-def create_model(model_name):
+def create_model(model_name, load_with_transformerlens=False) -> LanguageModel:
     """Init Models from model_name only"""
     if model_name in MODELS:
         class_name = MODELS[model_name]["model_class"]
         cls = getattr(sys.modules[__name__], class_name)
+        if load_with_transformerlens:
+            if MODELS[model_name].get("transformerlens_compatible", False):
+                return cls(model_name, load_with_transformerlens=True)
+            else:
+                raise ValueError(f"Model '{model_name}' has not (yet) been implemented as to be compatible with TransformerLens.")
         return cls(model_name)
 
     raise ValueError(f"Unknown Model '{model_name}'")

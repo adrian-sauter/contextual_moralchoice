@@ -24,3 +24,16 @@ VARIATION_MAPPINGS = {
     "Emotional": "E",
     "Relational": "R"
 }
+
+ACTIVATION_LAYER_DICT = {
+    "meta/llama-3.1-8b-instruct": {
+        "Consequentialist": 29,
+        "Emotional": 14,
+        "Relational": 15,
+    },
+    "qwen/qwen3-8b": {
+        "Consequentialist": 22,
+        "Emotional": 18,
+        "Relational": 20,
+    }
+}

@@ -22,6 +22,13 @@ parser.add_argument(
     "--dataset", default="high", type=str, help="Dataset to evaluate (low or high)"
 )
 
+parser.add_argument(
+    "--pickle",
+    default=False,
+    action="store_true",
+    help="Whether to save the aggregated results as a pickle file instead of csv",
+)
+
 args = parser.parse_args()
 
 
@@ -41,6 +48,8 @@ for path, subdirs, files in os.walk(path_results_raw):
     for name in files:
         if name.endswith(".pickle"):
             path_file = os.path.join(path, name)
+        #if name.split('.')[0][-1] in ["C", "E", "R"]:
+        #    continue
 
         with open(path_file, "rb") as f:
             tmp = pickle.load(f)
@@ -53,7 +62,6 @@ for path, subdirs, files in os.walk(path_results_raw):
             #results.append(ordered_tmp)
 
 df_results = pd.concat(results)
-
 # Store one csv per model
 if not os.path.exists(path_results):
     os.makedirs(path_results)
@@ -64,6 +72,11 @@ for model_id in df_results["model_id"].unique():
         company_name = 'openai'
     else:
         company_name = model_id.split('/')[0]
-    results_model.to_csv(
-        f"{path_results}/{company_name}_{model_id.split('/')[-1]}.csv"
-    )
+    if args.pickle:
+        results_model.to_pickle(
+            f"{path_results}/{company_name}_{model_id.split('/')[-1]}.pkl"
+        )
+    else:
+        results_model.to_csv(
+            f"{path_results}/{company_name}_{model_id.split('/')[-1]}.csv"
+        )
