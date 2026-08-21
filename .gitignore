@@ -28,3 +28,9 @@ create_openai_batch.py
 
 # raw result files
 *.pickle
+
+# claude-generated figures (just meant as a test)
+figures/
+
+# DS _Store files
+.DS_Store
