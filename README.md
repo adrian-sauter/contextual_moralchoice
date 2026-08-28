@@ -1,6 +1,16 @@
 # Between Rules and Reality: On the Context Sensitivity of LLM Moral Judgment
 
-**Authors:** Adrian Sauter and Mona Schirmer (2026)
+**Authors:** [Adrian Sauter](https://adrian-sauter.github.io/) and [Mona Schirmer](https://monasch.github.io/) (2026)
+**Paper:** [On the Context Sensitivity of LLM Moral Judgment](https://arxiv.org/abs/2603.23114) (EMNLP 2026).
+
+```bibtex
+@article{sauter2026between,
+  title={Between Rules and Reality: On the Context Sensitivity of LLM Moral Judgment},
+  author={Sauter, Adrian and Schirmer, Mona},
+  journal={arXiv preprint arXiv:2603.23114},
+  year={2026}
+}
+```
 
 This repository builds on the [MoralChoice](https://github.com/ninodimontalcino/moralchoice) benchmark
 ([Scherrer et al., NeurIPS 2023](https://arxiv.org/abs/2307.14324)) to study whether LLMs' moral
