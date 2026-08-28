@@ -39,9 +39,6 @@ use contrastive activation steering to reproduce or reverse the observed shifts.
 repo and plots the result. `evaluate/ALL_FIGURES.ipynb` has the full set of figures, including a
 few that need raw experiment data not included here (noted inline).
 
-`src/notebooks/` holds the original, more exploratory analysis notebooks each metric in `evaluate/`
-was developed in. They're kept for reference only — nothing in `evaluate/` depends on them.
-
 ## Installation
 
 ```bash
@@ -50,14 +47,11 @@ python -m pip install -r requirements.txt
 
 ## Configuration
 
-Everything a new user needs to set lives in `src/config.py` or as environment variables — nothing
-else in the codebase should need editing to point at a different machine:
+In order to use the code, please set the paths in `src/config.py` or in the following directories:
 
 - **API keys**: add a `<company>_key.txt` file per provider under `api_keys/` (e.g.
   `api_keys/openai_key.txt`, `api_keys/anthropic_key.txt`), matching the `company` field used in
   `src/models.py`'s `MODELS` registry.
-- **Azure endpoints** (only if using an Azure-hosted model): add a
-  `<company>_azure_endpoint.txt` file under `azure_endpoints/`.
 - **Hugging Face cache/offload** (only relevant for locally-run models): by default, downloaded
   weights and offloaded layers go to `cache/` and `offload/` under the repo root. Override with the
   `MORALCHOICE_HF_CACHE` / `MORALCHOICE_OFFLOAD` environment variables (e.g. to point at a cluster's
@@ -122,11 +116,6 @@ throughput) on a compute cluster:
 | Direct run on cluster (`src.evaluate`) | Llama, Mistral, Qwen, DeepSeek (local) models | `data/responses/{llama,mistral,qwen,deepseek}_models/` |
 | Original MoralChoice (2023) reproduction | 28 original models (AI21, Cohere, GPT-3/3.5/4, Claude v1/v2, PaLM 2, OPT-IML, Bloomz, ...) | `data/responses/paper/{orig_high,orig_low}/` |
 
-The scripts that create/submit/download the provider batch jobs (OpenAI, Anthropic, Together) are
-kept locally under `stuff/batch_scripts/` for personal reference — they are **not** part of this
-repo, are unmaintained, and are not needed to reproduce results from the already-collected response
-data above.
-
 ## Models supported
 
 Model identifiers are registered in the `MODELS` dict in `src/models.py`. Current roster:
@@ -187,23 +176,6 @@ experiment: extracting residual-stream activations, building a contrastive steer
 base scenario and its contextual variation, and applying it (at a chosen layer and strength) to
 reproduce or reverse a model's contextual preference shift. `evaluate/analyze_layers.py` selects the
 best layer per variation via cross-validated logistic-regression probes over those activations.
-
-## Known gaps
-
-A few figures in `evaluate/ALL_FIGURES.ipynb` need raw experiment data that isn't included in this
-repo (noted inline in the notebook, next to the cell that needs it):
-
-- The human/LLM agreement comparison needs `human_llm_agreement.csv`.
-- The system-prompt-steering baseline panel needs raw system-prompt-steering response data
-  (input to `evaluate/compute_system_prompt_cps.py`).
-- The layer-accuracy plot needs an archived activation-selection pickle; the computation itself is
-  reproducible via `evaluate/analyze_layers.py` given re-extracted activations.
-- The benchmark-accuracy plot needs raw lm-eval-harness JSON output (input to
-  `evaluate/compute_benchmark_results.py`).
-
-The activation-engineering steering-configuration plot is the exception — its data
-(`evaluate/data/ab_vector_steering_dfs/cps_config_data.json`) is included, so it plots fine even
-though the original notebook that generated that JSON isn't.
 
 ## License
 
