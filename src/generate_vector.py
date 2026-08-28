@@ -200,7 +200,7 @@ print(f"Generating vectors using {sum(len(ids) for ids in id_groups.values())} t
 # # 5. Master Vector Computation Logic
 # # This is for cases where probabilitied were not derived (e.g., when using "compare" or "repeat"). We can still use the vectors from the ab question type, we just need to load it.
 
-ab_weights_df = pd.DataFrame(pd.read_pickle(f"/home/asauter1/contextual_moralchoice/data/responses/llama_extraction/high_activations/llama-3.1-8b-instruct_activations.pkl"))
+ab_weights_df = pd.DataFrame(pd.read_pickle(f"{PATH_RESULTS}/llama_extraction/high_activations/llama-3.1-8b-instruct_activations.pkl"))
 def get_vector(v_name, target_layer, weighted=False):
     base_sub = df[(df['variation'] == 'Base') & (df['scenario_id'].isin(id_groups[v_name]))]
     var_sub = df[(df['variation'] == v_name) & (df['scenario_id'].isin(id_groups[v_name]))]

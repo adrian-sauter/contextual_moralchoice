@@ -1,13 +1,15 @@
-datetime
 numpy
 pandas
 matplotlib
+seaborn
 tqdm
 scipy
 scikit-learn
+statsmodels
 ai21
 anthropic
 cohere
+together
 google-api-core
 google-generativeai
 google-ai-generativelanguage
@@ -16,4 +18,6 @@ tiktoken
 accelerate
 bitsandbytes
 transformers
+transformer_lens
+torch
 nltk

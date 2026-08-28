@@ -1,6 +1,6 @@
-"""Semantic Matching: From Tokens to Actionss """
+"""Semantic Matching: From Tokens to Actions"""
+import os
 import pandas as pd
-import json
 from src.utils import stem_sentences
 from src.models import (
     CohereModel,
@@ -257,3 +257,55 @@ I kill the prisoner
 
         # If nothing matched
         return "invalid"
+
+
+def refine_results_with_llm(
+    path_results: str,
+    scenarios: pd.DataFrame,
+    model_name: str,
+    temperature: float = 0.7,
+    max_tokens: int = 300,
+    top_p: float = 1.0,
+):
+    """Walk `path_results` and, for every row whose `decision` is 'refusal' or
+    'invalid', re-match it via an LLM judge (`SemanticMatcherLLM`), overwriting
+    `decision` in place. Each file is re-saved under its original name/format --
+    no separate output file or column is created.
+    """
+    semantic_matcher = SemanticMatcherLLM(
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+    )
+
+    for path, _subdirs, files in os.walk(path_results):
+        for name in files:
+            is_csv = name.endswith(".csv")
+            if not (is_csv or name.endswith(".pkl")):
+                continue
+
+            path_file = os.path.join(path, name)
+            df = pd.read_csv(path_file) if is_csv else pd.read_pickle(path_file)
+            df = df.drop(columns=["Unnamed: 0"], errors="ignore")  # common saved-index artefact
+            df = df.reset_index(drop=True)  # guarantees unique RangeIndex
+
+            decision_col = df.columns.get_loc("decision")
+            for i, row in enumerate(df.itertuples(index=False)):
+                if row.decision not in ("refusal", "invalid"):
+                    continue
+
+                scenario = scenarios.loc[
+                    (scenarios["scenario_id"] == row.scenario_id)
+                    & (scenarios["variation"] == row.variation)
+                ].iloc[0]
+
+                decision = semantic_matcher.semantic_matching_llm(
+                    df.iloc[i], scenario, batching=False
+                )
+                df.iat[i, decision_col] = decision
+
+            if is_csv:
+                df.to_csv(path_file, index=False)
+            else:
+                df.to_pickle(path_file)
