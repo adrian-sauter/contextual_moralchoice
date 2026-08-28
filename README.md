@@ -1,6 +1,8 @@
 # On the Context Sensitivity of LLM Moral Judgment
 
+
 **Authors:** [Adrian Sauter](https://adrian-sauter.github.io/) and [Mona Schirmer](https://monasch.github.io/)  
+
 **Paper:** [On the Context Sensitivity of LLM Moral Judgment](https://arxiv.org/abs/2603.23114) (EMNLP 2026).  
 
 ```bibtex
