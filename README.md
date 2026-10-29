@@ -6,10 +6,11 @@
 **Paper:** [On the Context Sensitivity of LLM Moral Judgment](https://arxiv.org/abs/2603.23114) (EMNLP 2026).  
 
 ```bibtex
-@article{sauter2026contextual,
+@inproceedings{sauter2026context,
   title={On the Context Sensitivity of LLM Moral Judgment},
   author={Sauter, Adrian and Schirmer, Mona},
-  journal={arXiv preprint arXiv:2603.23114},
+  booktitle={Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing},
+  pages={4068--4113},
   year={2026}
 }
 ```
