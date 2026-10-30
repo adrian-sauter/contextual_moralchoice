@@ -39,15 +39,15 @@
     const rb = document.querySelector(".ribbon");
     if (!rb) return;
     const label = rb.textContent.trim();
-    const W = rb.offsetWidth || 320, S = (rb.offsetHeight || 51) / 3, A = S * 0.16, PAD = A + 2, H = 3 * S + 2 * PAD;
+    const W = rb.offsetWidth || 320, S = (rb.offsetHeight || 51) / 3, A = S * 0.09, PAD = A + 2, H = 3 * S + 2 * PAD;
     const k = (2 * Math.PI) / (W / 2.6);
     const colors = ["#ce2939", "#ffffff", "#477050"];
     const ns = "http://www.w3.org/2000/svg";
     rb.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="margin-top:${-PAD}px" aria-hidden="true">
       <defs>
         <linearGradient id="flag-shade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${(2 * Math.PI) / k}" y2="0" spreadMethod="repeat">
-          <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".25" stop-color="#fff" stop-opacity=".16"/>
-          <stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset=".75" stop-color="#000" stop-opacity=".2"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
+          <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".25" stop-color="#fff" stop-opacity=".08"/>
+          <stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset=".75" stop-color="#000" stop-opacity=".1"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
         </linearGradient>
         <path id="flag-mid"/>
       </defs>
@@ -68,7 +68,7 @@
     }
     if (reduceMotion) return draw(0);
     let t0 = null;
-    const loop = (now) => { if (t0 === null) t0 = now; draw(((now - t0) / 1000) * 2.2); requestAnimationFrame(loop); };
+    const loop = (now) => { if (t0 === null) t0 = now; draw(((now - t0) / 1000) * 0.9); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   })();
 
