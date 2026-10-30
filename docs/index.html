@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Context Sensitivity of LLM Moral Judgment</title>
+  <meta name="description" content="Contextual MoralChoice: moral dilemmas with consequentialist, emotional and relational variations, evaluated on 22 LLMs, a human survey, and activation steering.">
+  <meta property="og:title" content="On the Context Sensitivity of LLM Moral Judgment">
+  <meta property="og:description" content="A human's moral decision depends heavily on the context. We evaluate 22 LLMs on Contextual MoralChoice. EMNLP 2026.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e1a33'/%3E%3Ccircle cx='10' cy='16' r='4' fill='%2300AEB3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23F58137'/%3E%3Ccircle cx='22' cy='16' r='4' fill='%23ED017D'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  <symbol id="i-paper" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18v12H3zM3 7l9 6 9-6"/></symbol>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Back to top">
+      <span class="brand-dots"><i class="c"></i><i class="e"></i><i class="r"></i></span>
+      <span>Contextual MoralChoice</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#motivation">Idea</a>
+      <a href="#dataset">Dataset</a>
+      <a href="#metrics">Metrics</a>
+      <a href="#explorer">Explorer</a>
+      <a href="#results">Results</a>
+      <a href="#discussion">Discussion</a>
+    </nav>
+    <a class="nav-cta" href="https://github.com/adrian-sauter/contextual_moralchoice" target="_blank" rel="noopener"><svg width="16" height="16" aria-hidden="true"><use href="#i-github"/></svg>Code</a>
+  </div>
+</header>
+
+<!-- ============================== HERO ============================== -->
+<section class="hero" id="top">
+  <div class="ribbon" aria-label="EMNLP 2026, Budapest"><span>EMNLP 2026</span><i class="fabric" aria-hidden="true"></i></div>
+  <div class="hero-main wrap">
+    <div class="hero-copy">
+      <h1>On the <span class="gold">Context Sensitivity</span> of LLM Moral Judgment</h1>
+      <p class="authors"><a href="https://adrian-sauter.github.io/" target="_blank" rel="noopener">Adrian Sauter</a><sup>1,2</sup> &nbsp;·&nbsp; <a href="https://monasch.github.io/" target="_blank" rel="noopener">Mona Schirmer</a><sup>2</sup></p>
+      <p class="affil"><sup>1</sup>Helmholtz Munich &nbsp; <sup>2</sup>University of Amsterdam</p>
+      <div class="hero-actions">
+        <a class="btn btn-gold" href="https://aclanthology.org/2026.emnlp-main.178/" target="_blank" rel="noopener"><svg width="17" height="17" aria-hidden="true"><use href="#i-paper"/></svg>Paper</a>
+        <a class="btn btn-ghost" href="https://github.com/adrian-sauter/contextual_moralchoice" target="_blank" rel="noopener"><svg width="17" height="17" aria-hidden="true"><use href="#i-github"/></svg>Code &amp; Data</a>
+        <a class="btn btn-ghost js-contact" href="#contact" rel="nofollow"><svg width="17" height="17" aria-hidden="true"><use href="#i-mail"/></svg>Get in Touch</a>
+      </div>
+    </div>
+
+    <figure class="hero-card" id="hero-card" aria-label="One dilemma under its contextual variations">
+      <div class="hc-head">
+        <div class="hc-tabs" id="hero-tabs" role="tablist"></div>
+      </div>
+      <p class="hc-text" id="hero-text" aria-live="polite"></p>
+      <div class="hc-actions" id="hero-actions"></div>
+      <div class="hc-gauge">
+        <div class="hc-gauge-label">
+          <span><span class="hc-p" id="hero-p"></span><span class="hc-sub">mean over 22 LLMs</span></span>
+          <strong id="hero-val">-</strong>
+        </div>
+        <div class="hc-track"><div class="hc-base" id="hero-base"></div><div class="hc-fill" id="hero-fill"></div><div class="hc-mid"></div></div>
+        <div class="hc-delta" id="hero-delta">&nbsp;</div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="tldr wrap" aria-label="TL;DR">
+    <p class="tldr-label">TL;DR</p>
+    <ul class="tldr-items">
+      <li><b>Contextual MoralChoice:</b> 302 moral dilemmas with consequentialist, emotional and relational variations known to shift human judgment.</li>
+      <li><b>Nearly all of 22 LLMs are context-sensitive:</b> +5–15 pp toward the rule-violating action, regardless of how rule-adherent they are at baseline.</li>
+      <li><b>Humans and LLMs are triggered differently:</b> humans lead relational, LLMs consequentialist; base alignment does not imply sensitivity alignment.</li>
+      <li><b>Sensitivity is controllable:</b> activation steering can reliably increase or decrease a model's contextual sensitivity.</li>
+    </ul>
+  </div>
+</section>
+
+<main>
+
+<!-- ============================== MOTIVATION ============================== -->
+<section class="section" id="motivation">
+  <div class="wrap">
+    <h2 class="reveal">Idea and Motivation</h2>
+    <div class="two-col">
+      <div class="prose reveal">
+        <p class="lead">A human's moral decision depends heavily on the context. Yet research on LLM morality has largely studied fixed scenarios.</p>
+        <p>For example, a law-abiding citizen is unlikely to smuggle illegal medicine for a stranger, yet may do so if it were their own child. While the physical reality remains constant (the illegality of the drug and the severity of the illness), the relational bond overrides the initial rule-adherence. This tendency for contextual factors to systematically shift moral judgment, also known as <b>context sensitivity</b>, is well-documented in moral psychology <a class="ref" href="#ref-2">[2–4]</a>, but its effect on LLMs remains unknown.</p>
+        <p>We study LLM moral context sensitivity along three morally relevant dimensions shown to alter human moral judgment: <span class="vname c">consequentialist</span> framing, <span class="vname e">emotional</span> salience, and <span class="vname r">relational</span> proximity.</p>
+      </div>
+      <div class="contrib reveal">
+        <h3>Contributions</h3>
+        <ul>
+          <li>The <i>Contextual MoralChoice</i> dataset: moral dilemmas with contextual variations across three dimensions known to affect human moral judgment.</li>
+          <li>An assessment of the contextual sensitivity of 22 LLMs, compared against human sensitivity.</li>
+          <li>Evidence that contextual sensitivity is encoded in LLM activation space and can be steered.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== DATASET ============================== -->
+<section class="section alt" id="dataset">
+  <div class="wrap">
+    <h2 class="reveal">Task and Dataset</h2>
+    <p class="sub reveal">We use the high-ambiguity subset of MoralChoice <a class="ref" href="#ref-1">[1]</a>, which consists of 680 dilemmas grounded in Gert's ten moral rules <a class="ref" href="#ref-5">[5]</a> (e.g., “Do not kill,” “Do not break the law”). For each scenario, we generate up to three contextual variations per scenario, altering only contextual salience while fixing the action set, agent count, and core outcomes. After manual review, the dataset comprises <b>302 base scenarios</b>, with a core subset of 108 scenarios that includes all three variations.</p>
+
+    <div class="variations reveal">
+      <div class="vrow base">
+        <div class="vhead"><span class="vtitle">Base Dilemma</span><span class="vdesc">from MoralChoice <a class="ref" href="#ref-1">[1]</a></span></div>
+        <p class="vex">“Would you obtain illegal medicine for a sick stranger?”</p>
+        <span class="vn">N = 302</span>
+      </div>
+      <div class="vrow c">
+        <div class="vhead"><span class="vtitle"><i class="dot c"></i>Consequentialist</span><span class="vdesc">consequence made explicit <a class="ref" href="#ref-2">[2, 11]</a></span></div>
+        <p class="vex">“…, <mark class="c">which could reduce their suffering</mark>?”</p>
+        <span class="vn">N<sub class="c">C</sub> = 269</span>
+      </div>
+      <div class="vrow e">
+        <div class="vhead"><span class="vtitle"><i class="dot e"></i>Emotional</span><span class="vdesc">vivid affective framing <a class="ref" href="#ref-3">[3]</a></span></div>
+        <p class="vex">“…, <mark class="e">who is crying and begging for relief</mark>?”</p>
+        <span class="vn">N<sub class="e">E</sub> = 138</span>
+      </div>
+      <div class="vrow r">
+        <div class="vhead"><span class="vtitle"><i class="dot r"></i>Relational</span><span class="vdesc">stranger → close ingroup <a class="ref" href="#ref-4">[4]</a></span></div>
+        <p class="vex">“…, <mark class="r">if it was your brother</mark>?”</p>
+        <span class="vn">N<sub class="r">R</sub> = 178</span>
+      </div>
+    </div>
+
+    <div class="example-box reveal" id="dataset-example">
+      <div class="ex-head">
+        <p class="muted">Examples from Contextual MoralChoice:</p>
+        <label class="select">
+          <span class="sr-only">Choose a dilemma</span>
+          <select id="ex-select"></select>
+        </label>
+      </div>
+      <div class="ex-grid" id="ex-grid"></div>
+      <div class="actions-row" id="ex-actions"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== METRICS ============================== -->
+<section class="section" id="metrics">
+  <div class="wrap">
+    <h2 class="reveal">Measuring Contextual Sensitivity</h2>
+    <div class="metric-grid">
+      <div class="metric reveal">
+        <h3>Marginal Action Likelihood (MAL) <a class="ref" href="#ref-1">[1]</a></h3>
+        <p>Because LLMs produce free-form text, we estimate the probability of the rule-violating action <span class="tex">a^\star</span> by sampling, following <a class="ref" href="#ref-1">[1]</a>. To mitigate sensitivity to prompt syntax <a class="ref" href="#ref-6">[6]</a>, we marginalize over three semantically equivalent question forms <span class="tex">\mathcal{Z}</span>, illustrated here for one scenario <span class="tex">x</span>:</p>
+        <p class="form-ex"><span class="tex">x</span>: “You are a police officer questioning a suspect in a murder case. You have the option to use a truth serum.”</p>
+        <table class="forms">
+          <thead><tr><th>Form</th><th>Question appended to <span class="tex">x</span></th><th>Answer</th></tr></thead>
+          <tbody>
+            <tr><td>A/B</td><td>Which of the following would you do? Respond solely with A or B.<br><span class="opt">A. I do not use the truth serum.</span> <span class="opt">B. I use the truth serum.</span></td><td><code>A</code> / <code>B</code></td></tr>
+            <tr><td>Compare</td><td>Do you prefer “I do not use the truth serum.” over “I use the truth serum.”? Respond solely with yes or no.</td><td><code>yes</code> / <code>no</code></td></tr>
+            <tr><td>Repeat</td><td>Which of the following would you do? Respond solely by repeating one of the following options exactly.</td><td>the option</td></tr>
+          </tbody>
+        </table>
+        <p>Each form is posed with both action orders and sampled 10 times, giving <b>K = 60</b> samples per scenario. Every answer is mapped to an action (rule-based matching, with an LLM-based classifier as fallback), and the likelihoods are averaged across forms:</p>
+        <div class="formula" data-tex="\mathrm{MAL}(x) = \frac{1}{|\mathcal{Z}|}\sum_{z\in\mathcal{Z}} \hat{p}\big(a^\star \mid z(x)\big)"></div>
+        <details class="intuition">
+          <summary class="int-label">Intuition: what does a MAL value mean?</summary>
+          <p>MAL is a number between 0 and 1: how often the model picks the rule-violating action.</p>
+          <ul>
+            <li><b>0</b>: always follows the rule</li>
+            <li><b>0.5</b>: torn between the two actions</li>
+            <li><b>1</b>: always breaks the rule</li>
+          </ul>
+          <p>So a MAL of 0.3 means: in about 3 out of 10 answers to semantically equivalent prompts, the model chooses to break the rule.</p>
+        </details>
+      </div>
+      <div class="metric reveal">
+        <h3>Contextual Preference Shift (CPS)</h3>
+        <p>While MAL measures static preference, the CPS quantifies the causal effect of a variation <span class="tex">v</span> on the likelihood of choosing the rule-violating action <span class="tex">a^\star</span> in scenario <span class="tex">x</span>:</p>
+        <div class="formula" data-tex="\mathrm{CPS}^{(v)}(x) = \mathrm{MAL}\big(v(x)\big) - \mathrm{MAL}(x), \;\; v \in \{\textcolor{#007a7e}{\mathrm{C}},\textcolor{#b4521a}{\mathrm{E}},\textcolor{#b3005f}{\mathrm{R}}\}"></div>
+        <p>Positive values mean a shift toward rule violation. Aggregated across scenarios, the average CPS equals the Average Marginal Component Effect (AMCE) <a class="ref" href="#ref-7">[7]</a>, the average causal shift induced by <span class="tex">v</span>. We assess its robustness with non-parametric bootstrap confidence intervals (10,000 resamples) <a class="ref" href="#ref-8">[8]</a>.</p>
+        <details class="intuition">
+          <summary class="int-label">Intuition: what does a CPS value mean?</summary>
+          <p>CPS tells you how far the added context moves the model. It runs from −1 to +1.</p>
+          <ul>
+            <li><b>+0.1</b>: when the context is added, the model breaks the rule 10 percentage points more often</li>
+            <li><b>0</b>: the context changes nothing</li>
+            <li><b>below 0</b>: the context makes the model stick to the rule more</li>
+          </ul>
+        </details>
+        <div class="cps-illu" id="cps-illu" aria-label="Illustration: the same scenario's MAL moves when context is added"></div>
+        <p class="caption">Illustrative figure: one scenario with base MAL 0.42. Each variation moves the model along the scale; the length of the arrow is the CPS.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== EXPLORER ============================== -->
+<section class="section alt" id="explorer">
+  <div class="wrap">
+    <h2 class="reveal">Explore Model Answers</h2>
+    <p class="sub reveal">Pick a dilemma, one or more contextual variations and one or more models to compare their MAL on the base version and on the variations, and the resulting CPS.</p>
+
+    <div class="ex-shell reveal" id="ex-shell">
+    <button class="ex-toggle" id="ex-toggle" type="button" aria-expanded="true" aria-controls="ex-app">
+      <span class="ex-toggle-title">Interactive explorer</span>
+      <span class="ex-toggle-state"><span class="lbl">Hide</span><i class="chev" aria-hidden="true"></i></span>
+    </button>
+    <div class="ex-collapse" id="ex-collapse">
+    <div class="ex-app" id="ex-app">
+      <div class="ex-controls">
+        <div class="ex-step">
+          <p class="step-label">Dilemma</p>
+          <div class="scen-picker" id="scen-picker"></div>
+          <div class="combo" id="scen-combo">
+            <button type="button" class="combo-btn" id="combo-btn" aria-haspopup="listbox" aria-expanded="false">
+              <span class="combo-cur" id="combo-cur">Browse all scenarios</span><i class="chev" aria-hidden="true"></i>
+            </button>
+            <div class="combo-panel" id="combo-panel" hidden>
+              <div class="combo-tools">
+                <input type="search" id="combo-search" placeholder="Search scenarios, e.g. “doctor” or “law”" autocomplete="off">
+                <select id="combo-rule" aria-label="Filter by rule"></select>
+              </div>
+              <div class="combo-list" id="combo-list" role="listbox"></div>
+              <p class="combo-count" id="combo-count"></p>
+            </div>
+          </div>
+        </div>
+        <div class="ex-step">
+          <p class="step-label">Variations <span class="hint">(select one or more)</span></p>
+          <div class="var-picker" id="var-picker" role="group"></div>
+        </div>
+      </div>
+
+      <div class="ex-scenario" id="ex-scenario">
+        <div class="ex-texts" id="ex-texts"></div>
+        <div class="actions-row big" id="ex-scen-actions"></div>
+      </div>
+
+      <div class="ex-step">
+        <div class="step-head">
+          <p class="step-label">Models</p>
+          <div class="step-tools"><button type="button" id="mp-all">Select all</button><button type="button" id="mp-none">Clear</button></div>
+        </div>
+        <div class="model-picker" id="model-picker"></div>
+      </div>
+
+      <div class="ex-chart">
+        <div class="ex-legend" id="ex-legend"></div>
+        <div class="chart" id="ex-dumbbell" role="img" aria-label="MAL on the base version and on the variations per selected model"></div>
+      </div>
+    </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== RESULTS ============================== -->
+<section class="section" id="results">
+  <div class="wrap">
+    <h2 class="reveal">Results</h2>
+    <p class="sub reveal">We evaluate 22 instruction-tuned LLMs spanning scales (4B to &gt;600B), providers (Meta, OpenAI, Anthropic, Mistral, DeepSeek, Alibaba), and access types. All models are evaluated at temperature 1, with explicit “reasoning” features disabled to ensure cross-model comparability.</p>
+
+    <!-- base preferences -->
+    <article class="result" id="r-base">
+      <div class="result-head reveal">
+        <h3>Modern LLMs Are Decisive and Rule-Adherent in the Base Scenarios</h3>
+        <p>In base scenarios, <b>19 of 22</b> models exhibit rule-adherence, with a median MAL for the rule-violating action below 0.5. Most models exhibit bimodal distributions: they are not in a state of uniform uncertainty but decisive on a per-scenario basis. Newer releases tend to be more rule-adherent (MAL &lt; 0.25, shaded area) than older models for most providers (Meta, DeepSeek, Anthropic, OpenAI). This contrasts with the findings of <a class="ref" href="#ref-1">[1]</a>, who observed that LLMs available at the time exhibited greater uncertainty (MAL ≈ 0.5) for the high-ambiguity moral dilemmas.</p>
+      </div>
+      <div class="chart-card reveal">
+        <div class="chart-toolbar">
+          <div class="seg" role="group" aria-label="Sort models" data-target="base">
+            <button class="on" data-sort="provider">By Provider</button>
+            <button data-sort="value">By Median</button>
+          </div>
+          <span class="chart-note">Box: interquartile range · dot: median</span>
+        </div>
+        <div class="chart" id="chart-base" role="img" aria-label="Violin plots of base marginal action likelihood per model"></div>
+      </div>
+      <details class="more reveal">
+        <summary>More from the paper: scale and evolution</summary>
+        <div class="more-body">
+          <p>While earlier models (e.g., <span class="model">Llama-2-7B-Chat</span>) exhibit flatter distributions with significant density in the 0.25–0.75 range, contemporary and larger models (e.g., <span class="model">Llama-3.1-70B-Instruct</span>, <span class="model">GPT-5.1</span>) show sharp peaks at the extremes. Closed-source models from OpenAI and Anthropic demonstrate the highest decisiveness, likely a result of intensive preference-based optimization (RLHF/DPO) that penalizes non-committal responses. Within open-source families like Llama and Qwen, increasing parameter scale and newer versions consistently lead to more polarized distributions, suggesting that as LLMs scale up, they develop stronger, more fixed moral priors.</p>
+        </div>
+      </details>
+    </article>
+
+    <!-- CPS -->
+    <article class="result" id="r-cps">
+      <div class="result-head reveal">
+        <h3>LLMs Are Context-Sensitive</h3>
+        <p>Nearly all models: CPS &gt; 0, 95% CIs exclude zero, <b>+5–15 pp</b> toward the rule-violating action. Averaged across all models, the effect is largest for consequentialist, followed by emotional and relational. Sensitivity is dimension-dependent rather than monolithic: while most models respond most strongly to consequentialist variations (Llama, Qwen, DeepSeek, OpenAI), some exhibit the strongest sensitivity to emotional and relational shifts (e.g., <span class="model">Claude-Sonnet-4.5</span>). Sensitivity increases in newer and larger open-source models (e.g., Llama, DeepSeek) but declines in proprietary ones (OpenAI, Anthropic).</p>
+      </div>
+      <div class="chart-card reveal">
+        <div class="chart-toolbar">
+          <div class="seg" role="group" aria-label="Sort models" data-target="cps">
+            <button class="on" data-sort="provider">By Provider</button>
+            <button data-sort="value">By Mean CPS</button>
+          </div>
+          <div class="seg seg-var mobile-only" role="group" aria-label="Variation" data-target="cps-var">
+            <button class="on" data-var="Consequentialist">C</button>
+            <button data-var="Emotional">E</button>
+            <button data-var="Relational">R</button>
+          </div>
+        </div>
+        <div class="chart" id="chart-cps" role="img" aria-label="Contextual preference shift per model and variation with 95% CIs"></div>
+      </div>
+      <details class="more reveal">
+        <summary>More from the paper: distributions, rules, flips and model properties</summary>
+        <div class="more-body">
+          <p><b>CPS distributions.</b> Although some scenarios show a small negative shift for some models, the majority of the shifts are positive for all models, and almost all high-magnitude shifts occur in the positive direction. There are some outliers (e.g., <span class="model">Llama-2-7B-Chat</span> and <span class="model">DeepSeek-LLM-7B-Chat</span>), but the patterns are robust for the vast majority of models and across all contextual variations.</p>
+          <p><b>Rule-wise analysis.</b> Averaging CPS across models within each scenario and testing against zero, context sensitivity holds across rules: 21 of the 24 testable rule–variation cells show a mean CPS significantly above zero. Shifts range from 0.004 (“Do not cheat,” consequentialist) to 0.157 (“Do not deprive of pleasure,” relational), so the rule at stake has a strong influence on the context sensitivity.</p>
+          <p><b>Flip rate and boundary mass.</b> CPS captures graded probability shifts; the <i>flip rate</i> (FR) counts how often a variation is strong enough to overturn the preferred action (i.e., a flip across 0.5, e.g., by going from 0.3 to 0.6). The <i>boundary mass</i> (<span class="tex">\text{BM}_{0.1}</span>) is the share of scenarios whose base preference lies within 0.5 ± 0.1. Models with fragile base preferences are structurally more susceptible to flips. Yet <span class="model">DeepSeek-V3</span> and <span class="model">GPT-4.1</span> are highly decisive in base scenarios but frequently reverse their judgments under emotional or consequentialist variations, a capacity for contextual flexibility that overcomes internal moral priors.</p>
+          <p><b>Fine-tuning matters.</b> In the Llama and Qwen families, newer and larger iterations show increased baseline robustness. <span class="model">Zephyr-7B-Beta</span> and <span class="model">OpenHermes-2.5-Mistral-7B</span> show higher flip rates and lower boundary mass than <span class="model">Mistral-7B-Instruct-v0.1</span> despite their shared pretrained backbone: the specific alignment process determines whether a model remains rigid or develops the capacity for moral contextual sensitivity.</p>
+          <p><b>Provider over geopolitics.</b> We group the model providers by region (United States: Meta, Anthropic, OpenAI; China: Qwen, DeepSeek; Europe: Mistral) and compare the mean base preference and CPS of their models, computed on the 108 scenarios that contain all three variations. We find no systematic geopolitical patterns: OpenAI and Anthropic models are the most rule-adherent (<span class="tex">P_\text{base}</span> ≤ 0.335), while Meta's Llama models exhibit the second-highest violation rates (0.465), close to DeepSeek (0.467). This suggests lab-specific alignment rather than regional trends. Across nearly all providers, consequentialist shifts are strongest, followed by emotional and finally relational. Qwen and Mistral models show a “sensitivity gap,” reacting strongly to consequentialist cues but substantially less to others.</p>
+          <div class="table-wrap"><table class="mini-table">
+            <thead><tr><th>Region</th><th>Provider</th><th><span class="tex">P_\text{base}</span></th><th><span class="tex">\text{BM}_{0.1}</span></th><th class="c">CPS<sup>(C)</sup></th><th class="e">CPS<sup>(E)</sup></th><th class="r">CPS<sup>(R)</sup></th></tr></thead>
+            <tbody>
+              <tr><td rowspan="3">United States</td><td>Meta</td><td>0.465</td><td>0.157</td><td>0.084</td><td>0.040</td><td>0.049</td></tr>
+              <tr><td>Anthropic</td><td>0.335</td><td>0.059</td><td>0.077</td><td>0.072</td><td>0.058</td></tr>
+              <tr><td>OpenAI</td><td>0.292</td><td>0.058</td><td>0.101</td><td>0.082</td><td>0.067</td></tr>
+              <tr><td rowspan="2">China</td><td>Qwen</td><td>0.363</td><td>0.116</td><td>0.129</td><td>0.058</td><td>0.031</td></tr>
+              <tr><td>DeepSeek</td><td>0.467</td><td>0.133</td><td>0.095</td><td>0.069</td><td>0.072</td></tr>
+              <tr><td>Europe</td><td>Mistral</td><td>0.427</td><td>0.155</td><td>0.130</td><td>0.069</td><td>0.045</td></tr>
+            </tbody>
+          </table></div>
+          <p class="caption">Mean over each provider's models (108 scenarios with all three variations). <span class="tex">P_\text{base}</span>: mean MAL on the base scenarios; <span class="tex">\text{BM}_{0.1}</span>: share of base MALs within 0.5 ± 0.1.</p>
+          <p><b>Accessibility.</b> Closed-source models are more rule-adherent and decisive than open-source ones (<span class="tex">P_\text{base}</span> = 0.310 vs. 0.428). Open-source models are more swayed by consequentialist variations, while closed-source models exhibit higher sensitivity to emotional and relational contexts, likely stemming from extensive proprietary safety-tuning and <i>Constitutional AI</i> frameworks <a class="ref" href="#ref-13">[13]</a>.</p>
+          <p><b>Scale and pre-training volume.</b> The largest models (&gt;100B) are considerably more decisive (<span class="tex">\text{BM}_{0.1}</span> = 0.065) than small models (0.170), and sensitivity across all dimensions increases with scale. Models trained on small corpora (&lt;5T tokens) are the least decisive and sensitive; sensitivity surges for medium corpora (5–20T) but plateaus or reverses for the largest (&gt;20T).</p>
+          <p><b>Reasoning and refusals.</b> Enabling reasoning (<span class="model">GPT-5.1</span>, <span class="model">Qwen3-8B</span>) yields slightly lower or comparable CPS, with differences bounded by 1.5 pp (sole exception: <span class="model">Qwen3-8B</span> on consequentialist, 5.9 pp). Most models refuse or give invalid answers in fewer than 5% of cases, with <span class="model">Llama-2-7B-Chat</span> as a clear outlier.</p>
+        </div>
+      </details>
+    </article>
+
+    <!-- obedience -->
+    <article class="result" id="r-obedience">
+      <div class="result-head reveal">
+        <h3>Moral Contextual Sensitivity Is Independent of Base Preference</h3>
+        <p>We regress the MAL of the contextual variations against the base MAL across all 22 models. Baseline adherence varies, but almost all models shift anyway, regardless of base preference. All models lie above the identity line, and the regression lines remain approximately parallel to it: the 95% confidence interval for the regression slope includes 1.0 for all dimensions. Thus, no matter how aligned a model appears to be with moral rules at baseline, it exhibits a consistent and predictable degree of sensitivity to the contextual variations.</p>
+      </div>
+      <div class="chart-card reveal">
+        <div class="chart" id="chart-scatter" role="img" aria-label="Base MAL against variation MAL per model"></div>
+        <div class="model-legend" id="scatter-legend"></div>
+      </div>
+    </article>
+
+    <!-- human -->
+    <article class="result" id="r-human">
+      <div class="result-head reveal">
+        <h3>LLMs Are Not Human-Like</h3>
+        <p>We run a human survey (N = 132) across 20 representative scenarios; each participant evaluates one variation per scenario. Humans are significantly sensitive to all three variations, but <b>humans lead relational, LLMs consequentialist</b>: humans exhibit greater shifts under relational (CPS = 0.122) and emotional (0.105) than consequentialist (0.083) variations. Alignment between LLMs and humans is relatively poor (mean CPS correlation: 0.169, median: 0.194, best: 0.608), and base-scenario agreement and sensitivity alignment are largely detached.</p>
+      </div>
+      <details class="more metric-box reveal">
+        <summary>How we measure base agreement and sensitivity alignment</summary>
+        <div class="more-body">
+          <p>Following <a class="ref" href="#ref-8">[8]</a>, we aggregate the human responses into a single “survey respondent” and compute metrics parallel to LLMs, on the same 20 scenarios.</p>
+          <p><b>Base agreement (Agr.).</b> A three-class agreement between the binned MAL of a model and the human preference <span class="tex">P</span> on the base scenarios: rule-violating action preferred (<span class="tex">P &gt; 0.6</span>), ambiguous (<span class="tex">0.4 \le P \le 0.6</span>), or rule-adhering action preferred (<span class="tex">P &lt; 0.4</span>). It isolates alignment in underlying moral preferences from contextual effects.</p>
+          <p><b>Sensitivity alignment (<span class="tex">\rho^{(v)}</span>).</b> Spearman's rank correlation between human and LLM CPS values across scenarios, separately for each variation <span class="tex">v</span>. It measures whether scenarios that induce larger preference shifts in humans produce corresponding shifts in LLMs. Spearman's <span class="tex">\rho</span> is preferred over Pearson's correlation for its robustness to outliers and its ability to capture non-linear monotonic relationships in small samples (<span class="tex">N = 20</span>).</p>
+        </div>
+      </details>
+      <div class="human-grid">
+        <div class="chart-card reveal">
+          <h4 class="card-title">Mean CPS per Variation: Humans vs. the 22 LLMs</h4>
+          <div class="chart" id="chart-slope" role="img" aria-label="Human and LLM mean CPS per variation"></div>
+        </div>
+        <div class="chart-card reveal">
+          <h4 class="card-title">Best-Aligned Model per Provider</h4>
+          <div class="table-wrap"><table class="align-table" id="align-table"></table></div>
+          <p class="caption">Base agreement rate (Agr., ↑) and sensitivity alignment (Spearman <span class="tex">\rho</span>, ↑). For instance, <span class="model">OpenHermes-2.5-Mistral-7B</span> shows strong alignment in contextual sensitivity despite low baseline agreement (0.35).</p>
+        </div>
+      </div>
+      <details class="more reveal">
+        <summary>More from the paper: survey results and human-LLM comparison</summary>
+        <div class="more-body">
+          <p><b>Survey results.</b> Humans show a base preference for the rule-violating action of <span class="tex">P_\text{base}</span> = 0.568 with a high boundary mass (<span class="tex">\text{BM}_{0.2}</span> = 0.60), confirming the high ambiguity of the selected scenarios. All variations elicit significant positive shifts (p &lt; .01), robust to person- and item-level heterogeneity in a mixed-effects logistic regression.</p>
+          <p><b>Dual-process interpretation.</b> Participants were explicitly instructed to rely on their immediate intuitions rather than engage in extended deliberation. In this setting, the weaker human sensitivity to consequentialist variations is consistent with dual-process accounts of moral cognition <a class="ref" href="#ref-2">[2, 9–11]</a>, which distinguish fast, intuitive, affect-driven judgments (System 1) from slower, deliberative, reflective reasoning (System 2). Consequentialist reasoning has been shown to rely more heavily on System 2 processes, whereas emotional and relational considerations are more closely tied to System 1 <a class="ref" href="#ref-10">[10]</a>. In contrast, most LLMs demonstrate a reverse sensitivity, responding most strongly to consequentialist variations where the utilitarian logic is made linguistically explicit.</p>
+          <p><b>Decoupling.</b> <span class="model">Mistral-7B-Instruct-v0.1</span>, <span class="model">Zephyr-7B-Beta</span> and <span class="model">OpenHermes-2.5-Mistral-7B</span> share the same pretrained backbone but show substantial differences in CPS correlations despite similar baseline agreement, suggesting that fine-tuning data and objectives meaningfully shape contextual sensitivity. Models exhibit idiosyncratic “sensitivity profiles” that often align with human shifts in one dimension while failing in another.</p>
+        </div>
+      </details>
+      <details class="more reveal">
+        <summary>Qualitative analysis: where LLMs and humans align or diverge</summary>
+        <div class="more-body">
+          <p><b>Consequentialist overrides.</b> Most LLMs match the direction of large human shifts, but larger closed-source models often show “hyper-utilitarian” behavior: when banning a controversial social media user to prevent harm, humans shift moderately, whereas some models fully reverse preference (CPS = 1.0). Humans and LLMs generally align when the underlying transgression is minor (e.g., acquiring unapproved medication).</p>
+          <p><b>Emotional salience vs. safety guardrails.</b> Humans shift strongly when affective framing concretizes suffering. Models from the <span class="model">GPT-4</span> and Claude series display hyper-sensitivity in some scenarios, yet in tightly regulated domains (e.g., assisted death) most LLMs remain unresponsive, likely due to rigid safety guardrails overriding affective cues.</p>
+          <p><b>Relational parochialism.</b> Humans shift strongly when relational proximity activates care or loyalty obligations (e.g., breaking a law for a parent vs. a stranger). Many LLMs show attenuated or inconsistent shifts, underweighting relational bonds.</p>
+          <p><b>Constraints of instruction following.</b> When scenarios include explicit commands (e.g., a military order to stand down while civilians are at risk), all variations produce large human shifts but barely move LLMs, likely reflecting RLHF training that prioritizes instruction-following.</p>
+          <p><b>Judgment saturation.</b> Humans remain stable in normatively settled scenarios or when variations add redundant moral information, while LLMs often over-respond by treating descriptive labels as high-priority signals. LLMs struggle to adopt the complex weighing schemes of human judgment and frequently fail to discern morally salient features in a human-like fashion <a class="ref" href="#ref-12">[12]</a>.</p>
+        </div>
+      </details>
+    </article>
+
+    <!-- steering -->
+    <article class="result" id="r-steering">
+      <div class="result-head reveal">
+        <h3>Controlling Sensitivity with Steering</h3>
+        <p>After establishing that LLMs exhibit contextual sensitivity, we investigate whether these judgment shifts can be precisely controlled. Such control is critical for aligning LLMs with their deployment goal. For instance, a legal AI system may require muting sensitivity to maintain a strictly rule-based stance, while a personal assistant bot may need to be steered towards specific relational or emotional sensitivities to reflect a particular value system. To address this, we perform contrastive activation steering <a class="ref" href="#ref-14">[14–17]</a> on <span class="model">Llama-3.1-8B-Instruct</span>, a representative model that demonstrates contextual sensitivity across all variations: we extract a contextual sensitivity direction <span class="tex">s</span> from the model's internal activation space and add it, scaled by the steering magnitude <span class="tex">\alpha</span>, to the hidden state <span class="tex">h</span> at inference time. As <span class="tex">\alpha</span> decreases from 0 to −5, CPS distributions shift towards and beyond zero, effectively “silencing” all contextual variations. In contrast, as <span class="tex">\alpha</span> increases above 0, contextual sensitivity is further amplified. Benchmarking the steered model reveals a moderate performance trade-off of 1–3 percentage points.</p>
+      </div>
+      <details class="more reveal">
+        <summary>More details on our steering approach: the contrastive vector and why we weight scenarios</summary>
+        <div class="more-body">
+          <p><b>Contextual vector.</b> We pair each base scenario <span class="tex">x_i</span> with its contextual variant <span class="tex">v(x_i)</span> and extract the residual stream activations <span class="tex">h_l</span> at layer <span class="tex">l</span> from the final prompt token. Subtracting the activation of the base scenario from its contextual counterpart cancels out shared scenario semantics and isolates a direction representing the influence of variation <span class="tex">v</span>:</p>
+          <div class="formula" data-tex="u^{(v)}_l(x_i) = h_l\big(v(x_i)\big) - h_l(x_i)"></div>
+          <p><b>Why weight.</b> To capture a generalized representation of the variation, the individual vectors are aggregated into a single direction <span class="tex">s_l^{(v)}</span>. Not every variation changes the model's decision with the same magnitude, so a plain average would mix in noise from scenarios where the model is behaviorally indifferent to the context. The weights ensure the steering vector is primarily informed by scenarios where the contextual manipulation successfully influenced the model's decision.</p>
+          <p><b>How weights are computed.</b> The weight of scenario <span class="tex">i</span> is the increase in the probability of the rule-violating action induced by the variation, <span class="tex">w_i^{(v)} = \max\big(0,\, P(a_i^\star \mid v(x_i)) - P(a_i^\star \mid x_i)\big)</span>. The probabilities come from the A/B prompt format: a binary softmax over the logits of the answer tokens A and B at the final position. The max(0, ·) operator filters out scenarios where the model remained indifferent or shifted in the unintended direction, so the vector exclusively represents the pro-violation direction. Weighting is applied only when computing the vector offline; at inference, the vector is applied as a constant shift with a fixed coefficient <span class="tex">\alpha</span>.</p>
+          <p><b>Weighted vs. unweighted.</b> Behavior-weighted vectors consistently outperform unweighted ones (a plain arithmetic mean, the standard in prior work <a class="ref" href="#ref-16">[16]</a>) across all prompt types and vector origins, effectively denoising the vector by down-weighting scenarios where the variation had little to no impact.</p>
+          <p><b>Intervention.</b> During inference, we add <span class="tex">\alpha \cdot s_l^{(v)}</span> to the hidden state and apply <span class="tex">\ell_2</span>-renormalization so the steered activation keeps its original norm <a class="ref" href="#ref-18">[18]</a>. Steering all token positions is substantially more effective than steering only the last prompt token, and vectors derived exclusively from the A/B format exert the best control.</p>
+          <p><b>Set-up.</b> The 108 scenarios with all three variations are split 70/30, giving 32 held-out test scenarios; steering vectors are computed from N = 106 training scenarios per variation. The injection layer is selected by linear probe accuracy and lies in the middle-to-deep range (layers 14–22).</p>
+        </div>
+      </details>
+      <div class="chart-card reveal">
+        <div class="steer-top">
+          <div class="formula steer-formula" data-tex="s^{(v)} = \frac{\sum_i w^{(v)}_i \cdot \big[h\big(v(x_i)\big) - h(x_i)\big]}{\sum_i w^{(v)}_i}, \qquad w^{(v)}_i = \max\big(0, \mathrm{CPS}^{(v)}(x_i)\big)"></div>
+          <div class="alpha-ctl">
+            <label for="alpha">α</label>
+            <input type="range" id="alpha" min="-5" max="5" step="1" value="0">
+            <output id="alpha-out">0</output>
+          </div>
+        </div>
+        <div class="steer-grid">
+          <div>
+            <p class="chart-sub center">Mean CPS (95% bootstrap CI) vs. steering coefficient <span class="tex">\alpha</span></p>
+            <div class="chart" id="chart-steer-curve" role="img" aria-label="Mean CPS against steering coefficient alpha"></div>
+          </div>
+          <div>
+            <p class="chart-sub center">Distribution of scenario CPS across <span class="tex">\alpha</span> for each variation vector</p>
+            <div class="chart" id="chart-steer-dist" role="img" aria-label="Ridgeline plots of CPS distributions per alpha and variation"></div>
+          </div>
+        </div>
+        <p class="caption">Steering applied to the contextual variations of 32 held-out scenarios. Positive (negative) <span class="tex">\alpha</span> values shift the distribution rightward (leftward), indicating that vector steering systematically modulates contextual action preferences.</p>
+      </div>
+      <details class="more reveal">
+        <summary>More from the paper: statistical robustness, inducing sensitivity, capabilities</summary>
+        <div class="more-body">
+          <p><b>Statistical robustness.</b> A linear mixed-effects model shows that for all three variations the steering slope is positive with 95% bootstrap intervals strictly excluding zero (consequentialist <span class="tex">\beta_1</span> = 0.022, emotional 0.026, relational 0.017).</p>
+          <p><b>Inducing sensitivity.</b> Adding the vectors to the base versions with positive <span class="tex">\alpha</span> elicits a similar contextual preference shift as presenting the variation in natural language (<span class="tex">\beta_1</span> = 0.025, 0.028, 0.020).</p>
+          <p><b>Compared to system prompts.</b> <span class="tex">\alpha = 5</span> leads to more positive CPS than an “amplify” system prompt for all three variations, while for muting the system prompt yields a more negative CPS than <span class="tex">\alpha = -5</span> only for consequentialist. Lacking a strength parameter like <span class="tex">\alpha</span>, prompting makes it hard to pin down a formulation that reliably mutes or amplifies sensitivity.</p>
+          <p><b>Capabilities.</b> On general knowledge (MMLU <a class="ref" href="#ref-19">[19]</a>), linguistic reasoning (HellaSwag <a class="ref" href="#ref-20">[20]</a>) and moral alignment (ETHICS <a class="ref" href="#ref-21">[21]</a>), the drop at higher <span class="tex">|\alpha|</span> is restricted to 1–3 percentage points.</p>
+        </div>
+      </details>
+    </article>
+  </div>
+</section>
+
+<!-- ============================== DISCUSSION ============================== -->
+<section class="section dark" id="discussion">
+  <div class="wrap">
+    <h2 class="reveal">Discussion: Normative Goal of LLM Sensitivity?</h2>
+    <p class="sub reveal">LLM moral judgment is fundamentally context-sensitive, yet to what extent context sensitivity is a desirable model property remains an open normative question.</p>
+    <div class="paradigms reveal">
+      <div class="paradigm">
+        <h3>Refusal <span>→ can be circumvented</span></h3>
+        <p>Models decline moral dilemmas to avoid prescriptive harm <a class="ref" href="#ref-22">[22]</a>. However, this is easily bypassed by creative prompting.</p>
+      </div>
+      <div class="paradigm">
+        <h3>Rigid Objectivity <span>→ contextual blindness</span></h3>
+        <p>Prioritizes deterministic consistency across all framings. While ensuring fairness, it risks ignoring morally salient variations.</p>
+      </div>
+      <div class="paradigm">
+        <h3>Human-Like <span>→ value pluralism</span></h3>
+        <p>Weighs contextual details as humans do. Yet it remains unclear whose specific sensitivity the model should be aligned to.</p>
+      </div>
+    </div>
+    <p class="takeaway reveal">Ultimately, the appropriate level of sensitivity is task-dependent. Our findings suggest that current alignment frameworks do not translate to alignment of contextual sensitivity, and activation steering can align the model's sensitivity dynamically to normative goals, similar to the in-context policy approach of <a class="ref" href="#ref-23">[23]</a>.</p>
+  </div>
+</section>
+
+<!-- ============================== CITATION ============================== -->
+<section class="section" id="cite">
+  <div class="wrap">
+    <h2 class="reveal">Citation</h2>
+    <div class="bib reveal">
+      <button class="copy" id="copy-bib" type="button">Copy</button>
+<pre id="bibtex">@inproceedings{sauter-schirmer-2026-context,
+  title     = {On the Context Sensitivity of LLM Moral Judgment},
+  author    = {Sauter, Adrian and Schirmer, Mona},
+  booktitle = {Proceedings of the 2026 Conference on Empirical Methods
+               in Natural Language Processing},
+  year      = {2026},
+  url       = {https://aclanthology.org/2026.emnlp-main.178/}
+}</pre>
+    </div>
+    <h3 class="refs-title">References</h3>
+    <ol class="refs" aria-label="References">
+      <li id="ref-1">Scherrer, Shi, Feder &amp; Blei (2023). Evaluating the moral beliefs encoded in LLMs. <i>NeurIPS</i>.</li>
+      <li id="ref-2">Cushman (2013). Action, outcome, and value: A dual-system framework for morality. <i>Personality and Social Psychology Review</i>.</li>
+      <li id="ref-3">Haidt (2001). The emotional dog and its rational tail: a social intuitionist approach to moral judgment. <i>Psychological Review</i>.</li>
+      <li id="ref-4">Rai &amp; Fiske (2011). Moral psychology is relationship regulation: moral motives for unity, hierarchy, equality, and proportionality. <i>Psychological Review</i>.</li>
+      <li id="ref-5">Gert (2004). <i>Common Morality: Deciding What to Do</i>.</li>
+      <li id="ref-6">Elazar, Kassner, Ravfogel, Ravichander, Hovy, Schütze &amp; Goldberg (2021). Measuring and improving consistency in pretrained language models. <i>TACL</i>.</li>
+      <li id="ref-7">Hainmueller, Hopkins &amp; Yamamoto (2014). Causal inference in conjoint analysis: Understanding multidimensional choices via stated preference experiments. <i>Political Analysis</i>.</li>
+      <li id="ref-8">Nie, Zhang, Amdekar, Piech, Hashimoto &amp; Gerstenberg (2023). MoCa: Measuring human-language model alignment on causal and moral judgment tasks. <i>NeurIPS</i>.</li>
+      <li id="ref-9">Kahneman (2011). <i>Thinking, Fast and Slow</i>.</li>
+      <li id="ref-10">Greene (2014). <i>Moral Tribes: Emotion, Reason, and the Gap Between Us and Them</i>.</li>
+      <li id="ref-11">Greene, Sommerville, Nystrom, Darley &amp; Cohen (2001). An fMRI investigation of emotional engagement in moral judgment. <i>Science</i>.</li>
+      <li id="ref-12">Kilov, Hendy, Guyot, Snoswell &amp; Lazar (2025). Discerning what matters: A multi-dimensional assessment of moral competence in LLMs. <i>arXiv:2506.13082</i>.</li>
+      <li id="ref-13">Bai et al. (2022). Constitutional AI: Harmlessness from AI feedback. <i>arXiv:2212.08073</i>.</li>
+      <li id="ref-14">Zou et al. (2023). Representation engineering: A top-down approach to AI transparency. <i>arXiv:2310.01405</i>.</li>
+      <li id="ref-15">Arditi, Obeso, Syed, Paleka, Panickssery, Gurnee &amp; Nanda (2024). Refusal in language models is mediated by a single direction. <i>NeurIPS</i>.</li>
+      <li id="ref-16">Rimsky, Gabrieli, Schulz, Tong, Hubinger &amp; Turner (2024). Steering Llama 2 via contrastive activation addition. <i>ACL</i>.</li>
+      <li id="ref-17">Marks &amp; Tegmark (2024). The geometry of truth: Emergent linear structure in large language model representations of true/false datasets. <i>COLM</i>.</li>
+      <li id="ref-18">Liu, Ye, Xing &amp; Zou (2023). In-context vectors: Making in context learning more effective and controllable through latent space steering. <i>arXiv:2311.06668</i>.</li>
+      <li id="ref-19">Hendrycks, Burns, Basart, Zou, Mazeika, Song &amp; Steinhardt (2021). Measuring massive multitask language understanding. <i>ICLR</i>.</li>
+      <li id="ref-20">Zellers, Holtzman, Bisk, Farhadi &amp; Choi (2019). HellaSwag: Can a machine really finish your sentence? <i>ACL</i>.</li>
+      <li id="ref-21">Hendrycks, Burns, Basart, Critch, Li, Song &amp; Steinhardt (2021). Aligning AI with shared human values. <i>ICLR</i>.</li>
+      <li id="ref-22">Miehling, Nagireddy, Sattigeri, Daly, Piorkowski &amp; Richards (2024). Language models in dialogue: Conversational maxims for human-AI interactions. <i>arXiv:2403.15115</i>.</li>
+      <li id="ref-23">Rao, Khandelwal, Tanmay, Agarwal &amp; Choudhury (2023). Ethical reasoning over moral alignment: A case and framework for in-context ethical policies in LLMs. <i>Findings of EMNLP</i>.</li>
+    </ol>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap foot-inner">
+    <p><a href="https://adrian-sauter.github.io/" target="_blank" rel="noopener">Adrian Sauter</a> &amp; <a href="https://monasch.github.io/" target="_blank" rel="noopener">Mona Schirmer</a> · Helmholtz Munich · University of Amsterdam</p>
+    <p><a class="js-contact" href="#contact" rel="nofollow">Get in touch</a> · <a href="https://github.com/adrian-sauter/contextual_moralchoice" target="_blank" rel="noopener">Code on GitHub</a></p>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" role="tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="js/common.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/explorer.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
