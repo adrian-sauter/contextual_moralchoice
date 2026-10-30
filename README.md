@@ -1,5 +1,8 @@
 # On the Context Sensitivity of LLM Moral Judgment
 
+[![Paper](https://img.shields.io/badge/Paper-EMNLP%202026-red)](https://aclanthology.org/2026.emnlp-main.178/)
+[![Website](https://img.shields.io/badge/Website-Project%20Page-blue)](https://adrian-sauter.github.io/contextual_moralchoice/)
+
 
 **Authors:** [Adrian Sauter](https://adrian-sauter.github.io/) and [Mona Schirmer](https://monasch.github.io/)  
 
