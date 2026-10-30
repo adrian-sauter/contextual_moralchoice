@@ -93,7 +93,7 @@ p { text-wrap: pretty; }
 .btn-ghost:hover { border-color: rgba(255, 255, 255, .6); }
 
 .hero-card { margin: 0; background: var(--surface); color: var(--ink); border-radius: var(--radius); padding: 22px 24px 20px; }
-.hc-head { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.hc-head { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .hc-rule { font-size: 13.5px; font-weight: 500; color: var(--muted); }
 .hc-tabs { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
 .hc-tabs button { position: relative; overflow: hidden; border: 0; background: transparent; font: 500 12.5px/1 var(--font); padding: 7px 10px; border-radius: 4px; color: var(--muted); cursor: pointer; transition: background .3s, color .3s; }
@@ -119,7 +119,7 @@ p { text-wrap: pretty; }
 .hc-base { background: var(--base); z-index: 2; }
 .hc-fill { z-index: 1; background: var(--c); }
 .hc-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(0, 0, 0, .3); z-index: 3; }
-.hc-delta { margin-top: 8px; font-size: 13.5px; color: var(--ink-2); height: 22px; line-height: 22px; }
+.hc-delta { margin-top: 8px; text-align: center; font-size: 13.5px; color: var(--ink-2); height: 22px; line-height: 22px; }
 .hc-delta sup { line-height: 0; }
 
 mark { background: none; color: inherit; padding: 0 .1em; border-radius: 2px; }
@@ -233,8 +233,8 @@ h4 { font-weight: 600; font-size: 15px; line-height: 1.3; margin: 0; }
 .m { font-family: "Times New Roman", serif; font-style: italic; }
 sup.star { font-size: .85em; vertical-align: .35em; line-height: 0; }
 .tex .katex { font-size: 1.08em; }
-.model { font-family: var(--mono); font-size: .9em; letter-spacing: -.01em; color: var(--ink); background: var(--bg-alt); padding: 0 .3em; border-radius: 3px; white-space: nowrap; }
-.dark .model { background: rgba(255, 255, 255, .1); color: #fff; }
+.model { font-weight: 600; color: var(--navy); white-space: nowrap; }
+.dark .model { color: #fff; }
 .refs-title { margin: 28px 0 0; font-size: 16px; color: var(--navy); }
 .mini-table { border-collapse: collapse; font-size: 13.5px; margin: 0 0 6px; font-variant-numeric: tabular-nums; }
 .mini-table th, .mini-table td { padding: 5px 12px 5px 0; text-align: right; border-bottom: 1px solid var(--grid); }

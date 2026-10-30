@@ -337,7 +337,7 @@
       let lx = 0;
       items.forEach(([t, k]) => {
         const gi = lg.append("g").attr("transform", `translate(${lx},0)`);
-        if (k === "h") gi.append("path").attr("d", d3.symbol(d3.symbolStar, 75)()).attr("fill", "#fff").attr("stroke", "#141a26").attr("stroke-width", 1.6);
+        if (k === "h") gi.append("path").attr("d", d3.symbol(d3.symbolDiamond, 80)()).attr("fill", "#fff").attr("stroke", "#141a26").attr("stroke-width", 1.6);
         if (k === "a") gi.append("circle").attr("r", 6.5).attr("fill", "#5b6478").attr("stroke", "#fff").attr("stroke-width", 1.5);
         if (k === "i") gi.append("circle").attr("r", 3.5).attr("fill", "#8b93a5").attr("fill-opacity", .45).attr("stroke", "#8b93a5");
         const tx = gi.append("text").attr("x", k === "h" ? 13 : 11).attr("dy", "0.35em").attr("class", "row-label").text(t);
@@ -367,7 +367,7 @@
         g.append("circle").attr("cx", x(a)).attr("cy", cy).attr("r", 8.5).attr("fill", VAR[v].ink).attr("stroke", "#fff").attr("stroke-width", 2)
           .on("mousemove", (e) => tip.show(`<div class="tt-t">LLM average, ${v}</div>` + row("mean CPS", fmt.p3(a)) + row("rank among variations", rl.get(v)), e))
           .on("mouseleave", () => tip.hide());
-        g.append("path").attr("d", d3.symbol(d3.symbolStar, 150)()).attr("transform", `translate(${x(h)},${cy})`).attr("fill", col).attr("stroke", "#141a26").attr("stroke-width", 1.5)
+        g.append("path").attr("d", d3.symbol(d3.symbolDiamond, 160)()).attr("transform", `translate(${x(h)},${cy})`).attr("fill", col).attr("stroke", "#141a26").attr("stroke-width", 1.5)
           .style("opacity", animate ? 0 : 1).on("mousemove", (e) => tip.show(`<div class="tt-t">Humans, ${v}</div>` + row("mean CPS", fmt.p3(h)) + row("rank among variations", rh.get(v)), e))
           .on("mouseleave", () => tip.hide())
           .transition().delay(animate ? DUR + 500 : 0).duration(400).style("opacity", 1);
