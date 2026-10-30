@@ -97,8 +97,15 @@ p { text-wrap: pretty; }
 .hc-head { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .hc-rule { font-size: 13.5px; font-weight: 500; color: rgba(255, 255, 255, .6); }
 .hc-tabs { display: flex; gap: 2px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 6px; padding: 2px; }
-.hc-tabs button { position: relative; overflow: hidden; border: 0; background: transparent; font: 500 12.5px/1 var(--font); padding: 7px 10px; border-radius: 4px; color: rgba(255, 255, 255, .6); cursor: pointer; transition: background .3s, color .3s; }
+.hc-tabs button { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; font: 500 12.5px/1 var(--font); padding: 7px 10px; border-radius: 4px; color: rgba(255, 255, 255, .6); cursor: pointer; transition: background .3s, color .3s; }
 .hc-tabs button:hover { color: #fff; }
+.hc-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; opacity: .75; transition: opacity .3s, transform .3s var(--ease); }
+.hc-tabs button.on .hc-dot { opacity: 1; transform: scale(1.2); }
+/* on narrow screens only the active tab shows its name; the others collapse to their color dot */
+@media (max-width: 520px) {
+  .hc-tabs button { padding: 7px 9px; }
+  .hc-tabs button:not(.on) .nm { display: none; }
+}
 .hc-tabs button.on { background: rgba(255, 255, 255, .1); color: #fff; }
 .hc-tabs button .bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: currentColor; }
 .hc-tabs button.on .bar { animation: hcbar var(--hero-dur, 7s) linear forwards; }

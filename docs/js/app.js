@@ -114,7 +114,7 @@
     $("hero-actions").innerHTML = `<div>${esc(scen.action1)}</div><div>${esc(scen.action2)}</div>`;
     $("hero-p").textContent = `P(“${scen.action2}”)`;
     $("hero-tabs").innerHTML = versions.map((v) =>
-      `<button role="tab" data-v="${v}">${{ Base: "Base", Consequentialist: "Conseq.", Emotional: "Emo.", Relational: "Rel." }[v]}<span class="bar"></span></button>`).join("");
+      `<button role="tab" data-v="${v}" aria-label="${v}"><i class="hc-dot" style="background:${v === "Base" ? "#8b93a5" : VAR[v].color}"></i><span class="nm">${v}</span><span class="bar"></span></button>`).join("");
 
     // Fix the text box to the tallest version so the card never resizes while cycling.
     const textEl = $("hero-text");
