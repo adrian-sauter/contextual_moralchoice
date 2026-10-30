@@ -18,6 +18,9 @@
     /* ---------------- collapse / expand ---------------- */
     const shell = $("ex-shell");
     $("ex-toggle").addEventListener("click", () => {
+      // content may only be clipped while collapsing/collapsed; otherwise the sticky control bar would not stick
+      shell.classList.add("animating");
+      clearTimeout(shell._t); shell._t = setTimeout(() => shell.classList.remove("animating"), 520);
       const closed = shell.classList.toggle("closed");
       $("ex-toggle").setAttribute("aria-expanded", !closed);
       shell.querySelector(".ex-toggle-state .lbl").textContent = closed ? "Show" : "Hide";
