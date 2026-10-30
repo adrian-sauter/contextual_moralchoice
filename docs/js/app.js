@@ -149,10 +149,10 @@
       }, 300);
       $("hero-base").style.width = avg.Base * 100 + "%";
       $("hero-fill").style.width = avg[v] * 100 + "%";
-      $("hero-fill").style.background = v === "Base" ? VAR.Base.color : VAR[v].color;
+      $("hero-fill").style.background = v === "Base" ? "#8b93a5" : VAR[v].color;
       countTo($("hero-val"), avg[v], fmt.p, 800);
       $("hero-delta").innerHTML = v === "Base" ? "Base version"
-        : `CPS<sup>(<b style="color:${VAR[v].ink}">${VAR[v].short}</b>)</sup> = <b style="color:${VAR[v].ink}">${fmt.signed(avg[v] - avg.Base)}</b>`;
+        : `CPS<sup>(<b style="color:${VAR[v].color}">${VAR[v].short}</b>)</sup> = <b style="color:${VAR[v].color}">${fmt.signed(avg[v] - avg.Base)}</b>`;
     }
     function schedule() {
       clearInterval(timer);
